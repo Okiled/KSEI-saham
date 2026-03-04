@@ -748,12 +748,12 @@ async function parsePdf(filePath, fileMeta) {
   };
 }
 
-async function scanRootPdfs() {
-  const entries = await readdir(rootDir, { withFileTypes: true });
+async function scanPdfsInDir(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
   const pdfFileNames = entries.filter((entry) => entry.isFile() && isPdf(entry.name)).map((entry) => entry.name);
   const pdfs = [];
   for (const fileName of pdfFileNames) {
-    const absolutePath = path.join(rootDir, fileName);
+    const absolutePath = path.join(dirPath, fileName);
     const meta = await stat(absolutePath);
     pdfs.push({
       fileName,
@@ -763,6 +763,19 @@ async function scanRootPdfs() {
       relevance: relevanceScore(fileName),
     });
   }
+  return pdfs;
+}
+
+async function scanAvailablePdfs() {
+  const fromRoot = await scanPdfsInDir(rootDir);
+  const fromPublic = await scanPdfsInDir(publicPdfDir);
+  const dedup = new Map();
+
+  for (const pdf of [...fromRoot, ...fromPublic]) {
+    if (!dedup.has(pdf.fileName)) dedup.set(pdf.fileName, pdf);
+  }
+
+  const pdfs = [...dedup.values()];
   pdfs.sort((a, b) => {
     if (b.relevance !== a.relevance) return b.relevance - a.relevance;
     if (b.size !== a.size) return b.size - a.size;
@@ -772,6 +785,16 @@ async function scanRootPdfs() {
     pdfs[0].isDefault = true;
   }
   return pdfs;
+}
+
+async function hasExistingDataIndex() {
+  try {
+    const indexPath = path.join(publicDataDir, "index.json");
+    await stat(indexPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function writeCompletenessReports(safeName, parsed) {
@@ -831,13 +854,21 @@ async function main() {
   await mkdir(publicDataDir, { recursive: true });
   await mkdir(outReportDir, { recursive: true });
 
-  const pdfs = await scanRootPdfs();
+  const pdfs = await scanAvailablePdfs();
   if (pdfs.length === 0) {
-    throw new Error("Tidak menemukan file PDF di root repo.");
+    const hasDataIndex = await hasExistingDataIndex();
+    if (hasDataIndex) {
+      console.warn("[build-dataset] tidak ada PDF. Menggunakan dataset JSON yang sudah ada di public/data.");
+      return;
+    }
+    throw new Error("Tidak menemukan file PDF (root repo/public/pdfs) dan belum ada public/data/index.json.");
   }
 
   for (const pdf of pdfs) {
-    await copyFile(pdf.absolutePath, path.join(publicPdfDir, pdf.fileName));
+    const destinationPath = path.join(publicPdfDir, pdf.fileName);
+    if (path.resolve(pdf.absolutePath) !== path.resolve(destinationPath)) {
+      await copyFile(pdf.absolutePath, destinationPath);
+    }
   }
 
   const index = [];

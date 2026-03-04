@@ -1,0 +1,108 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --radius: 16px;
+
+  /* semantic surface scale */
+  --bg-canvas: 8 11 15;
+  --bg-surface-1: 15 20 27;
+  --bg-surface-2: 20 27 36;
+  --bg-surface-3: 27 36 48;
+
+  /* semantic text scale */
+  --text-primary: 239 244 251;
+  --text-secondary: 185 196 212;
+  --text-tertiary: 136 151 171;
+
+  /* semantic borders */
+  --border-subtle: 58 70 87;
+  --border-strong: 91 107 130;
+
+  /* semantic accents */
+  --accent-local: 85 186 171;
+  --accent-foreign: 131 144 222;
+  --accent-unknown: 124 132 146;
+  --accent-focus: 132 164 246;
+  --danger: 232 112 125;
+  --warning: 236 185 97;
+  --success: 85 196 135;
+}
+
+* {
+  border-color: theme("colors.border");
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  font-size: 16px;
+}
+
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+  background:
+    radial-gradient(1200px 620px at 8% -10%, rgba(120, 140, 180, 0.09), transparent 58%),
+    radial-gradient(980px 580px at 98% 0%, rgba(90, 120, 180, 0.07), transparent 64%),
+    rgb(var(--bg-canvas));
+  color: rgb(var(--text-primary));
+}
+
+::selection {
+  background: rgba(132, 164, 246, 0.32);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.card-glass {
+  border: 1px solid rgba(var(--border-subtle), 0.65);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.26);
+}
+
+@layer utilities {
+  .surface-1 {
+    background-color: rgb(var(--bg-surface-1) / 0.9);
+  }
+
+  .surface-2 {
+    background-color: rgb(var(--bg-surface-2) / 0.88);
+  }
+
+  .surface-3 {
+    background-color: rgb(var(--bg-surface-3) / 0.86);
+  }
+
+  .text-balance-soft {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

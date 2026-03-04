@@ -1,0 +1,13 @@
+[
+  { "match": "GARIBALDI THOHIR", "tags": ["KONGLO"] },
+  { "match": "SANDIAGA", "tags": ["PEP", "KONGLO"] },
+  { "match": "PRAJOGO PANGESTU", "tags": ["KONGLO"] },
+  { "match": "TAHIR", "tags": ["KONGLO"] },
+  { "match": "HARTONO", "tags": ["KONGLO"] },
+  { "match": "ANTONI SALIM", "tags": ["KONGLO"] },
+  { "match": "BOY THOHIR", "tags": ["KONGLO"] },
+  { "match": "ROSAN", "tags": ["PEP"] },
+  { "match": "WISHNUTAMA", "tags": ["PEP"] },
+  { "match": "ERICK THOHIR", "tags": ["PEP"] }
+]
+

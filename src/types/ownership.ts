@@ -121,3 +121,123 @@ export type ParsedOwnership = {
   report: ParseReport;
   stats?: ParsedStats;
 };
+
+export type OwnershipSnapshotMeta = {
+  snapshotId: string;
+  snapshotDate: string;
+  rowCount: number;
+  issuerCount: number;
+  investorCount: number;
+};
+
+export type CompositionBucketKey =
+  | "institusi"
+  | "asing"
+  | "lokal"
+  | "insider"
+  | "reksadana"
+  | "lainnya"
+  | "freeFloat";
+
+export type CompositionBucket = {
+  key: CompositionBucketKey;
+  label: string;
+  percentage: number;
+  totalShares: number;
+  holderCount: number;
+};
+
+export type IssuerHolderPosition = {
+  issuerId: string;
+  shareCode: string;
+  issuerName: string;
+  investorId: string;
+  investorName: string;
+  investorType: string | null;
+  localForeign: LocalForeign;
+  nationality: string | null;
+  domicile: string | null;
+  percentage: number;
+  shares: number;
+};
+
+export type CrossHoldingPosition = {
+  investorId: string;
+  investorName: string;
+  issuerId: string;
+  shareCode: string;
+  issuerName: string;
+  percentage: number;
+  shares: number;
+};
+
+export type IssuerOwnershipSummary = {
+  issuerId: string;
+  shareCode: string;
+  issuerName: string;
+  snapshotDate: string | null;
+  totalKnownPercentage: number;
+  freeFloatEstimatePct: number;
+  holders: IssuerHolderPosition[];
+  composition: CompositionBucket[];
+  crossHoldingsByInvestor: Record<string, CrossHoldingPosition[]>;
+};
+
+export type InvestorPortfolioPosition = {
+  investorId: string;
+  investorName: string;
+  investorType: string | null;
+  localForeign: LocalForeign;
+  nationality: string | null;
+  domicile: string | null;
+  issuerId: string;
+  shareCode: string;
+  issuerName: string;
+  percentage: number;
+  shares: number;
+  snapshotDate: string;
+};
+
+export type TimelinePoint = {
+  snapshotDate: string;
+  percentage: number;
+  shares: number;
+};
+
+export type TimelineSeries = {
+  investorId: string;
+  investorName: string;
+  points: TimelinePoint[];
+};
+
+export type OwnershipTimelineView = {
+  issuerId: string;
+  shareCode: string;
+  issuerName: string;
+  snapshotDates: string[];
+  hasEnoughHistory: boolean;
+  series: TimelineSeries[];
+};
+
+export type CoInvestorOverlapCell = {
+  investorAId: string;
+  investorAName: string;
+  investorBId: string;
+  investorBName: string;
+  commonIssuerCount: number;
+  weightedOverlap: number;
+  commonIssuers: Array<{
+    issuerId: string;
+    shareCode: string;
+    issuerName: string;
+  }>;
+};
+
+export type CoInvestorOverlapView = {
+  issuerId: string;
+  shareCode: string;
+  issuerName: string;
+  holderIds: string[];
+  holderNamesById: Record<string, string>;
+  cells: CoInvestorOverlapCell[];
+};

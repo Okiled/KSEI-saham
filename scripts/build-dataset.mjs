@@ -68,6 +68,34 @@ function isPdf(fileName) {
   return /\.pdf$/i.test(fileName);
 }
 
+function normalizePdfIdentity(fileName) {
+  return fileName
+    .replace(/\s*\(\d+\)(?=\.pdf$)/i, "")
+    .toLowerCase();
+}
+
+function isCleanPdfFileName(fileName) {
+  return !/\s\(\d+\)(?=\.pdf$)/i.test(fileName);
+}
+
+function choosePreferredPdf(existing, incoming) {
+  if (incoming.relevance !== existing.relevance) {
+    return incoming.relevance > existing.relevance ? incoming : existing;
+  }
+  const existingClean = isCleanPdfFileName(existing.fileName);
+  const incomingClean = isCleanPdfFileName(incoming.fileName);
+  if (incomingClean !== existingClean) {
+    return incomingClean ? incoming : existing;
+  }
+  if (incoming.size !== existing.size) {
+    return incoming.size > existing.size ? incoming : existing;
+  }
+  if (incoming.mtimeMs !== existing.mtimeMs) {
+    return incoming.mtimeMs > existing.mtimeMs ? incoming : existing;
+  }
+  return incoming.fileName.localeCompare(existing.fileName) < 0 ? incoming : existing;
+}
+
 function toSafeName(fileName) {
   return fileName
     .toLowerCase()
@@ -772,7 +800,13 @@ async function scanAvailablePdfs() {
   const dedup = new Map();
 
   for (const pdf of [...fromRoot, ...fromPublic]) {
-    if (!dedup.has(pdf.fileName)) dedup.set(pdf.fileName, pdf);
+    const identity = normalizePdfIdentity(pdf.fileName);
+    const existing = dedup.get(identity);
+    if (!existing) {
+      dedup.set(identity, pdf);
+      continue;
+    }
+    dedup.set(identity, choosePreferredPdf(existing, pdf));
   }
 
   const pdfs = [...dedup.values()];

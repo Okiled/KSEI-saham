@@ -106,12 +106,14 @@ export function IssuerAccordion({ rows, selectedIssuerId, onSelectIssuer, onSele
       <details
           key={issuer.issuerId}
           open={selectedIssuerId === issuer.issuerId}
-          className={`overflow-hidden rounded-xl border bg-background/25 transition-colors duration-200 ${
-            selectedIssuerId === issuer.issuerId ? "border-focus/55" : "border-border"
+          className={`group overflow-hidden rounded-xl border bg-background/25 transition-[border-color,box-shadow,transform,background-color] duration-200 ${
+            selectedIssuerId === issuer.issuerId
+              ? "border-focus/55 shadow-[0_14px_30px_rgba(0,0,0,0.24)]"
+              : "border-border hover:-translate-y-[1px] hover:border-border-strong/80 hover:shadow-[0_10px_24px_rgba(0,0,0,0.2)]"
           }`}
         >
           <summary
-            className="cursor-pointer list-none px-4 py-3"
+            className="cursor-pointer list-none px-4 py-3 transition-colors duration-200 group-hover:bg-panel-2/22"
             onClick={(event) => {
               event.preventDefault();
               onSelectIssuer(issuer.issuerId);
@@ -144,7 +146,7 @@ export function IssuerAccordion({ rows, selectedIssuerId, onSelectIssuer, onSele
                       onSelectIssuer(issuer.issuerId);
                       onSelectInvestor(holder.investorId);
                     }}
-                    className="w-full rounded-lg border border-border bg-panel/35 px-3 py-2 text-left transition-colors duration-150 hover:border-focus/45"
+                    className="w-full rounded-lg border border-border bg-panel/35 px-3 py-2 text-left transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-focus/45 hover:bg-panel-2/50 hover:shadow-[0_10px_20px_rgba(0,0,0,0.18)]"
                     title={holder.investorName}
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
@@ -159,7 +161,7 @@ export function IssuerAccordion({ rows, selectedIssuerId, onSelectIssuer, onSele
                             : holder.localForeign === "L"
                               ? "bg-local"
                               : "bg-unknown"
-                        }`}
+                        } transition-[width,filter] duration-300`}
                         style={{ width: `${width}%` }}
                       />
                     </div>

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { CommandPalette } from "../components/command-palette";
 import { IssuerAccordion } from "../components/issuer-accordion";
 import { OwnershipTable } from "../components/ownership-table";
-import { SankeyFlow } from "../components/sankey-flow";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
@@ -15,6 +14,11 @@ import { getInvestorId, getIssuerId } from "../lib/graph";
 import { fmtPercent } from "../lib/utils";
 import { useAppStore } from "../store/app-store";
 import type { OwnershipRow } from "../types/ownership";
+
+const SankeyFlow = lazy(async () => {
+  const module = await import("../components/sankey-flow");
+  return { default: module.SankeyFlow };
+});
 
 type DetailMode = "issuer" | "investor";
 
@@ -304,7 +308,7 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
   const focusTypeForModules = (focus.focusType ?? (mode === "investor" ? "investor" : "issuer")) as
     | "issuer"
     | "investor";
-  const graphRows = activeContextRows;
+  const graphRows = filteredRows;
 
   const focusedRowFromContext = useMemo(() => {
     if (focusedRow) return focusedRow;
@@ -373,7 +377,7 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
     <main className="min-h-screen bg-nebula py-4">
       <CommandPalette />
 
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border/70 bg-panel/75 px-4 py-4 backdrop-blur">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border/70 bg-panel/75 px-4 py-4 backdrop-blur transition-[border-color,box-shadow,background-color] duration-300 hover:border-border-strong/75 hover:shadow-panel">
         <div>
           <div className="mb-1 inline-flex items-center gap-2 text-sm text-muted">
             <Link to="/" className="transition-colors duration-150 hover:text-foreground">
@@ -394,13 +398,13 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-panel px-2 py-1.5">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-panel px-2 py-1.5 transition-[border-color,box-shadow,background-color] duration-200 hover:border-border-strong/80 hover:bg-panel-2/70">
             <input
               list={mode === "issuer" ? "issuer-jump-list" : "investor-jump-list"}
               value={jumpQuery}
               onChange={(event) => setJumpQuery(event.target.value)}
               placeholder={mode === "issuer" ? "Jump ticker..." : "Jump investor..."}
-              className="h-8 w-[220px] bg-transparent px-2 text-sm text-foreground outline-none placeholder:text-muted"
+              className="h-8 w-[220px] rounded-md bg-transparent px-2 text-sm text-foreground outline-none transition-[background-color,box-shadow,color] duration-200 placeholder:text-muted hover:bg-panel-2/45 focus:bg-panel-2/55 focus:ring-2 focus:ring-focus/25"
               onKeyDown={(event) => {
                 if (event.key !== "Enter") return;
                 const value = jumpQuery.trim();
@@ -451,31 +455,31 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
       </datalist>
 
       <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Card>
+        <Card className="transition-all duration-300 hover:-translate-y-[1px] hover:border-border-strong/80 hover:shadow-panel">
           <CardContent className="p-4">
             <div className="text-xs uppercase tracking-wide text-muted">Total Emiten</div>
             <div className="mt-1 text-2xl font-semibold text-foreground">{issuerCount.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-300 hover:-translate-y-[1px] hover:border-border-strong/80 hover:shadow-panel">
           <CardContent className="p-4">
             <div className="text-xs uppercase tracking-wide text-muted">Total Pemegang</div>
             <div className="mt-1 text-2xl font-semibold text-foreground">{investorCount.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-300 hover:-translate-y-[1px] hover:border-border-strong/80 hover:shadow-panel">
           <CardContent className="p-4">
             <div className="text-xs uppercase tracking-wide text-muted">Rows Context</div>
             <div className="mt-1 text-2xl font-semibold text-foreground">{contextSummary.rowCount.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-300 hover:-translate-y-[1px] hover:border-border-strong/80 hover:shadow-panel">
           <CardContent className="p-4">
             <div className="text-xs uppercase tracking-wide text-muted">Top5 Concentration</div>
             <div className="mt-1 text-2xl font-semibold text-focus">{fmtPercent(contextSummary.topConcentration)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-300 hover:-translate-y-[1px] hover:border-border-strong/80 hover:shadow-panel">
           <CardContent className="p-4">
             <div className="text-xs uppercase tracking-wide text-muted">Exposure Mix</div>
             <div className="mt-1 text-sm text-foreground">
@@ -544,7 +548,7 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
           </div>
         ) : (
           <>
-            <Card className="md:col-span-12 overflow-hidden">
+            <Card className="md:col-span-12 overflow-hidden transition-all duration-300 hover:border-border-strong/80 hover:shadow-panel">
               <CardHeader>
                 <CardTitle>Ownership Intelligence Board</CardTitle>
               </CardHeader>
@@ -552,14 +556,22 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
                 <div className="grid gap-0">
                   <div className="border-b border-border/65 p-4">
                     <div className="mb-3 text-xs uppercase tracking-wide text-muted">Jaringan Koneksi</div>
-                    <SankeyFlow
-                      rows={graphRows}
-                      selectedIssuerId={effectiveIssuerId}
-                      selectedInvestorId={effectiveInvestorId}
-                      focusType={focusTypeForModules}
-                      onSelectIssuer={(issuerId) => navigateToIssuer(issuerId)}
-                      onSelectInvestor={(investorId) => focusInvestorInDashboard(investorId)}
-                    />
+                    <Suspense
+                      fallback={
+                        <div className="flex h-[480px] items-center justify-center rounded-xl border border-border bg-background/25 text-sm text-muted">
+                          Menyiapkan scene 3D...
+                        </div>
+                      }
+                    >
+                      <SankeyFlow
+                        rows={graphRows}
+                        selectedIssuerId={effectiveIssuerId}
+                        selectedInvestorId={effectiveInvestorId}
+                        focusType={focusTypeForModules}
+                        onSelectIssuer={(issuerId) => navigateToIssuer(issuerId)}
+                        onSelectInvestor={(investorId) => focusInvestorInDashboard(investorId)}
+                      />
+                    </Suspense>
                   </div>
                   <div className="p-4">
                     <div className="mb-3 text-xs uppercase tracking-wide text-muted">Pemegang Saham</div>
@@ -593,7 +605,7 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-12">
+            <Card className="md:col-span-12 transition-all duration-300 hover:border-border-strong/80 hover:shadow-panel">
               <CardHeader>
                 <CardTitle>Issuer Intelligence List</CardTitle>
               </CardHeader>

@@ -2,7 +2,9 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
-const cardVariants = cva("rounded-2xl border shadow-panel", {
+const cardVariants = cva(
+  "rounded-2xl border shadow-panel transition-[border-color,box-shadow,background-color,transform] duration-300 ease-out",
+  {
   variants: {
     surface: {
       1: "border-border/80 bg-panel/90",
@@ -13,7 +15,8 @@ const cardVariants = cva("rounded-2xl border shadow-panel", {
   defaultVariants: {
     surface: 1,
   },
-});
+},
+);
 
 type CardProps = React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof cardVariants>;
 

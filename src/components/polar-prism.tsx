@@ -121,11 +121,11 @@ export function PolarPrism({
   const makeArc = arc();
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-[340px] w-full rounded-xl border border-border bg-background/20">
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-[340px] w-full rounded-xl border border-border bg-panel-2/30">
       <defs>
         <radialGradient id="polarBg" cx="50%" cy="50%">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.03)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0.006)" />
+          <stop offset="0%" stopColor="rgba(10,140,110,0.04)" />
+          <stop offset="100%" stopColor="rgba(196,124,26,0.02)" />
         </radialGradient>
       </defs>
       <circle cx={cx} cy={cy} r={outer + 10} fill="url(#polarBg)" />
@@ -145,24 +145,25 @@ export function PolarPrism({
             key={slice.id}
             transform={`translate(${cx},${cy})`}
             d={path ?? ""}
+            className="transition-all duration-150 ease-expo-out hover:brightness-110 cursor-pointer"
             fill={
               slice.localForeign === "A"
-                ? "rgba(131,144,222,0.8)"
+                ? "rgba(196,124,26,0.75)"
                 : slice.localForeign === "L"
-                  ? "rgba(85,186,171,0.82)"
-                  : "rgba(124,132,146,0.75)"
+                  ? "rgba(10,140,110,0.72)"
+                  : "rgba(138,133,128,0.65)"
             }
           />
         );
       })}
 
-      <text x={cx} y={cy - 2} textAnchor="middle" fill="rgb(239,244,251)" fontSize={14} fontWeight={700}>
+      <text x={cx} y={cy - 2} textAnchor="middle" fill="rgb(26,24,20)" fontSize={14} fontWeight={700}>
         {effectiveFocus === "investor" ? "Investor Holdings Prism" : "Holder Concentration Prism"}
       </text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fill="rgb(136,151,171)" fontSize={12}>
+      <text x={cx} y={cy + 18} textAnchor="middle" fill="rgb(74,70,64)" fontSize={12}>
         Top {slices.length} slices
       </text>
-      <text x={12} y={height - 10} fill="rgb(136,151,171)" fontSize={11}>
+      <text x={12} y={height - 10} fill="rgb(74,70,64)" fontSize={11}>
         Dominan: {slices[0]?.label ?? "-"} ({fmtPercent(slices[0]?.percentage)})
       </text>
     </svg>

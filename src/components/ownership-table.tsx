@@ -70,40 +70,50 @@ export function OwnershipTable({ rows, selectedRowId, onSelectRow }: OwnershipTa
                   ? "border-foreign/35 bg-foreign/12 text-foreign"
                   : "border-border bg-panel/70 text-muted";
             return (
-              <button
+              <div
                 key={row.id}
-                type="button"
-                onClick={() => onSelectRow(row)}
-                className={`absolute left-0 right-0 grid grid-cols-[48px_1.8fr_180px_120px_170px_120px] items-center border-b border-border/45 px-4 text-left text-[14px] transition-colors duration-150 ${
-                  selected ? "bg-gradient-to-r from-focus/18 to-transparent" : "hover:bg-panel-2/45"
-                }`}
+                className="absolute left-0 right-0"
                 style={{
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                title={row.investorName}
               >
-                <span className="font-mono text-[13px] text-muted">{virtualRow.index + 1}</span>
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-foreground">{row.investorName}</div>
-                  <div className="truncate text-[12px] text-muted">
-                    {row.shareCode} - {row.date}
+                <button
+                  type="button"
+                  onClick={() => onSelectRow(row)}
+                  className={`grid h-full w-full grid-cols-[48px_1.8fr_180px_120px_170px_120px] items-center border-b border-border/45 px-4 text-left text-[14px] transition-[background-color,transform,box-shadow,border-color] duration-200 ${
+                    selected
+                      ? "bg-gradient-to-r from-focus/18 to-transparent shadow-[inset_0_0_0_1px_rgba(132,164,246,0.24)]"
+                      : "hover:-translate-y-[1px] hover:border-border-strong/70 hover:bg-panel-2/45 hover:shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
+                  }`}
+                  title={row.investorName}
+                >
+                  <span className="font-mono text-[13px] text-muted">{virtualRow.index + 1}</span>
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-foreground">{row.investorName}</div>
+                    <div className="truncate text-[12px] text-muted">
+                      {row.shareCode} - {row.date}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <span className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[12px] font-medium ${typeTone}`}>
-                    {isIndividualInvestorType(investorType) ? "Individual" : "Institusi"}
-                  </span>
-                  <div className="mt-0.5 text-[11px] text-muted">{investorType}</div>
-                </div>
-                <div>
-                  <span className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[12px] font-medium ${statusTone}`}>
-                    {statusLabel}
-                  </span>
-                </div>
-                <span className="text-right font-mono text-[13px] text-muted">{fmtNumber(row.totalHoldingShares)}</span>
-                <span className="text-right font-mono text-[14px] font-semibold text-foreground">{fmtPercent(row.percentage)}</span>
-              </button>
+                  <div>
+                    <span
+                      className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[12px] font-medium transition-all duration-200 ${typeTone}`}
+                    >
+                      {isIndividualInvestorType(investorType) ? "Individual" : "Institusi"}
+                    </span>
+                    <div className="mt-0.5 text-[11px] text-muted">{investorType}</div>
+                  </div>
+                  <div>
+                    <span
+                      className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[12px] font-medium transition-all duration-200 ${statusTone}`}
+                    >
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <span className="text-right font-mono text-[13px] text-muted">{fmtNumber(row.totalHoldingShares)}</span>
+                  <span className="text-right font-mono text-[14px] font-semibold text-foreground">{fmtPercent(row.percentage)}</span>
+                </button>
+              </div>
             );
           })}
         </div>

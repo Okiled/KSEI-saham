@@ -10,6 +10,7 @@ export type FiltersState = {
   queryText: string;
   queryMode: QueryMode;
   minPercentage: number;
+  minFreeFloat: number;
   localEnabled: boolean;
   foreignEnabled: boolean;
   unknownEnabled: boolean;
@@ -27,6 +28,15 @@ export type FocusState = {
   focusIssuerId: string | null;
   focusInvestorId: string | null;
   lastInteraction: FocusType | null;
+};
+
+export type UiState = {
+  themeMode: "light-premium";
+};
+
+export type ViewState = {
+  snapshotDate: string | null;
+  universeSort: "ticker" | "holder-count" | "dominant-pct" | "total-shares";
 };
 
 export type SelectionState = {
@@ -51,6 +61,8 @@ type AppState = {
   parseError: string | null;
   filters: FiltersState;
   focus: FocusState;
+  ui: UiState;
+  view: ViewState;
   selection: SelectionState;
   investorTagsById: Record<string, InvestorTag[]>;
   debugRowId: string | null;
@@ -67,6 +79,8 @@ type AppState = {
   setFocusIssuer: (issuerId: string | null) => void;
   setFocusInvestor: (investorId: string | null) => void;
   clearFocus: () => void;
+  updateUi: (patch: Partial<UiState>) => void;
+  updateView: (patch: Partial<ViewState>) => void;
   updateSelection: (patch: Partial<SelectionState>) => void;
   setDebugRowId: (rowId: string | null) => void;
   clearData: () => void;
@@ -77,6 +91,7 @@ function createDefaultFilters(): FiltersState {
     queryText: "",
     queryMode: "all",
     minPercentage: 0,
+    minFreeFloat: 0,
     localEnabled: true,
     foreignEnabled: true,
     unknownEnabled: true,
@@ -95,6 +110,15 @@ const defaultFocus: FocusState = {
   focusIssuerId: null,
   focusInvestorId: null,
   lastInteraction: null,
+};
+
+const defaultUi: UiState = {
+  themeMode: "light-premium",
+};
+
+const defaultView: ViewState = {
+  snapshotDate: null,
+  universeSort: "holder-count",
 };
 
 const defaultSelection: SelectionState = {
@@ -117,6 +141,8 @@ export const useAppStore = create<AppState>((set) => ({
   parseError: null,
   filters: createDefaultFilters(),
   focus: defaultFocus,
+  ui: defaultUi,
+  view: defaultView,
   selection: defaultSelection,
   investorTagsById: {},
   debugRowId: null,
@@ -133,6 +159,8 @@ export const useAppStore = create<AppState>((set) => ({
       parsePage: parsed.report.pageCount,
       parseTotalPages: parsed.report.pageCount,
       focus: defaultFocus,
+      ui: defaultUi,
+      view: defaultView,
       selection: defaultSelection,
       debugRowId: null,
     }),
@@ -229,6 +257,20 @@ export const useAppStore = create<AppState>((set) => ({
         selectedEdgeId: null,
       },
     })),
+  updateUi: (patch) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        ...patch,
+      },
+    })),
+  updateView: (patch) =>
+    set((state) => ({
+      view: {
+        ...state.view,
+        ...patch,
+      },
+    })),
   updateSelection: (patch) =>
     set((state) => {
       const nextSelection: SelectionState = { ...state.selection, ...patch };
@@ -255,6 +297,8 @@ export const useAppStore = create<AppState>((set) => ({
       parseError: null,
       filters: createDefaultFilters(),
       focus: defaultFocus,
+      ui: defaultUi,
+      view: defaultView,
       selection: defaultSelection,
       investorTagsById: {},
       debugRowId: null,

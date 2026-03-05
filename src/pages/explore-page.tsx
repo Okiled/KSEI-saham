@@ -442,7 +442,7 @@ export function ExplorePage() {
           <Card>
             <CardContent className="p-4">
               <div className="text-xs uppercase tracking-wide text-muted">Asing</div>
-              <div className="mt-1 text-2xl font-semibold text-purple">{investorBreakdown.foreign.toLocaleString("id-ID")}</div>
+              <div className="mt-1 text-2xl font-semibold text-gold">{investorBreakdown.foreign.toLocaleString("id-ID")}</div>
             </CardContent>
           </Card>
           <Card>

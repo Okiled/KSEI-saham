@@ -68,7 +68,11 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
   const institusiPresetActive = isSameSetAsArray(filters.investorTypes, institutionTypes);
 
   return (
-    <Collapsible.Root open={open} onOpenChange={setOpen} className="rounded-2xl border border-border bg-panel/78">
+    <Collapsible.Root
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-2xl border border-border bg-panel/78 transition-[border-color,box-shadow,background-color] duration-300 hover:border-border-strong/80 hover:shadow-panel"
+    >
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-[0.09em] text-muted">Filters</h3>
@@ -203,7 +207,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
                   if (!value) return;
                   updateFilters({ investorTypes: toggleSetValue(filters.investorTypes, value) });
                 }}
-                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 text-xs text-foreground outline-none"
+                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 text-xs text-foreground outline-none transition-[border-color,background-color,box-shadow,transform] duration-200 hover:border-border-strong/80 hover:bg-panel-2/65 focus:-translate-y-[1px] focus:border-focus/65 focus:ring-2 focus:ring-focus/20"
               >
                 <option value="">Pilih tipe investor...</option>
                 {investorTypes.map((type) => (
@@ -232,7 +236,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
                   if (!value) return;
                   updateFilters({ nationalities: toggleSetValue(filters.nationalities, value) });
                 }}
-                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 text-xs text-foreground outline-none"
+                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 text-xs text-foreground outline-none transition-[border-color,background-color,box-shadow,transform] duration-200 hover:border-border-strong/80 hover:bg-panel-2/65 focus:-translate-y-[1px] focus:border-focus/65 focus:ring-2 focus:ring-focus/20"
               >
                 <option value="">Pilih nationality...</option>
                 {nationalities.map((value) => (
@@ -258,7 +262,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
                   if (!value) return;
                   updateFilters({ domiciles: toggleSetValue(filters.domiciles, value) });
                 }}
-                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 text-xs text-foreground outline-none"
+                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 text-xs text-foreground outline-none transition-[border-color,background-color,box-shadow,transform] duration-200 hover:border-border-strong/80 hover:bg-panel-2/65 focus:-translate-y-[1px] focus:border-focus/65 focus:ring-2 focus:ring-focus/20"
               >
                 <option value="">Pilih domicile...</option>
                 {domiciles.map((value) => (

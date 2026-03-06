@@ -30,6 +30,8 @@
 
   /* accents — primary palette */
   --teal: 10 140 110;
+  --amber: 217 119 6;
+  /* Harsh Amber for Distribution */
   --gold: 196 124 26;
   --rose: 184 58 75;
   --violet: 107 79 160;
@@ -73,6 +75,7 @@ body {
     rgb(var(--bg-canvas));
   color: rgb(var(--text-primary));
   position: relative;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 body::before {
@@ -114,7 +117,7 @@ body::before {
 
 .stat-hero {
   font-family: var(--font-mono);
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
   color: rgb(var(--text-primary));
@@ -131,6 +134,14 @@ body::before {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--radius);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.26);
+}
+
+.glass-deep {
+  background: rgba(var(--bg-surface-1) / 0.65);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 12px 32px rgba(0, 0, 0, 0.22);
 }
 
 @layer utilities {

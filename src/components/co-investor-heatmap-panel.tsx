@@ -60,17 +60,17 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
 
   return (
     <div className="rounded-2xl border border-border bg-panel/35 p-4">
-      <div className="mb-3 overflow-auto">
-        <table className="min-w-[780px] border-collapse text-xs">
+      <div className="mb-3 w-full">
+        <table className="w-full border-collapse text-[9px]">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 min-w-[180px] bg-panel-2/85 p-2 text-left font-medium text-muted">Holder</th>
+              <th className="sticky left-0 z-10 w-1/4 max-w-[120px] bg-panel-2/85 p-1 text-left font-medium text-muted">Holder</th>
               {overlap.holderIds.map((holderId) => (
-                <th key={`h-col:${holderId}`} className="min-w-[72px] p-2 text-center">
+                <th key={`h-col:${holderId}`} className="p-0.5 text-center">
                   <button
                     type="button"
                     onClick={() => onSelectInvestor(holderId)}
-                    className="rounded px-1 py-0.5 text-[11px] text-muted transition-colors hover:bg-teal/10 hover:text-teal"
+                    className="block w-full max-w-[56px] rounded px-0.5 py-0.5 text-[8px] leading-tight text-muted transition-colors hover:bg-teal/10 hover:text-teal truncate"
                     title={overlap.holderNamesById[holderId]}
                   >
                     {truncate(overlap.holderNamesById[holderId] ?? holderId, 10)}
@@ -82,11 +82,11 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
           <tbody>
             {overlap.holderIds.map((rowHolderId) => (
               <tr key={`row:${rowHolderId}`}>
-                <th className="sticky left-0 z-10 bg-panel-2/85 p-2 text-left">
+                <th className="sticky left-0 z-10 max-w-[120px] bg-panel-2/85 p-1 text-left">
                   <button
                     type="button"
                     onClick={() => onSelectInvestor(rowHolderId)}
-                    className="rounded px-1 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:bg-teal/10 hover:text-teal"
+                    className="block w-full rounded px-0.5 py-0.5 text-[9px] font-medium text-foreground transition-colors hover:bg-teal/10 hover:text-teal truncate"
                     title={overlap.holderNamesById[rowHolderId]}
                   >
                     {truncate(overlap.holderNamesById[rowHolderId] ?? rowHolderId, 24)}
@@ -97,11 +97,11 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
                   const count = cell?.commonIssuerCount ?? 0;
                   const isDiag = rowHolderId === colHolderId;
                   return (
-                    <td key={`cell:${rowHolderId}:${colHolderId}`} className="p-1">
+                    <td key={`cell:${rowHolderId}:${colHolderId}`} className="p-px">
                       <button
                         type="button"
                         onClick={() => setActiveCell(cell ?? null)}
-                        className="h-9 w-16 rounded border border-border/40 font-mono text-[11px] font-medium transition-all duration-150 ease-expo-out hover:z-10 hover:scale-[1.08] hover:brightness-110 hover:shadow-sm"
+                        className="mx-auto block h-6 w-full min-w-[24px] max-w-[42px] rounded border border-border/40 font-mono text-[9px] font-medium transition-all duration-150 ease-expo-out hover:z-10 hover:scale-[1.15] hover:brightness-110 hover:shadow-sm"
                         style={{
                           backgroundColor: intensityColor(count, isDiag ? prepared.maxDiagonal : prepared.maxOffDiagonal, isDiag),
                           color: count > (isDiag ? prepared.maxDiagonal * 0.5 : prepared.maxOffDiagonal * 0.5) ? "white" : "rgb(var(--text-primary))",
@@ -120,7 +120,7 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
       </div>
 
       {/* ── Legend ── */}
-      <div className="mb-3 flex items-center gap-4 text-[11px] text-muted">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted">
         <div className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-8 rounded-sm" style={{ background: "linear-gradient(to right, #faf8f4, #0a8c6e)" }} />
           <span>Overlap: putih=0, semakin gelap=semakin banyak emiten bersama</span>

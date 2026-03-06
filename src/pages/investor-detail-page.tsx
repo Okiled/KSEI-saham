@@ -1,18 +1,18 @@
 import { useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
 import { AlertTriangle, Loader2, Users, Target, Globe, Building2, BarChart3 } from "lucide-react";
 import { AnimatedNumber } from "../components/animated-number";
-import { GlobalHeader } from "../components/global-header";
 import { InvestorPortfolioTable } from "../components/investor-portfolio-table";
 import { InvestorSankey } from "../components/investor-sankey";
 import { OwnershipTimelinePanel } from "../components/ownership-timeline-panel";
 import { CoInvestorHeatmapPanel } from "../components/co-investor-heatmap-panel";
-import { HHIGauge } from "../components/hhi-gauge";
+import { FrequentCoinvestorsPanel } from "../components/frequent-coinvestors-panel";
+import { HhiGauge } from "../components/hhi-gauge";
 import { useDatasetLoader } from "../hooks/use-dataset-loader";
 import { useOwnershipViews } from "../hooks/use-ownership-views";
 import { getInvestorId, getIssuerId } from "../lib/graph";
-import { fmtNumber, fmtPercent } from "../lib/utils";
+import { fmtNumber, fmtPercent, formatInvestorType } from "../lib/utils";
 import { investorTypeBadgeColor } from "../theme/tokens";
 import { buildInvestorCoInvestorOverlap } from "../lib/ownership-analytics";
 import type { OwnershipRow, OwnershipTimelineView } from "../types/ownership";
@@ -111,16 +111,29 @@ const sectionVariants: Variants = {
   })
 };
 
-const pageVariants: Variants = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] } },
-  exit: { opacity: 0, y: -8, transition: { duration: 0.2, ease: "easeIn" } }
+const sheetVariants: Variants = {
+  hidden: { x: "100%", opacity: 0 },
+  visible: { 
+    x: 0, 
+    opacity: 1, 
+    transition: { type: "spring", damping: 26, stiffness: 220, staggerChildren: 0.06 } 
+  },
+  exit: { 
+    x: "100%", 
+    opacity: 0, 
+    transition: { duration: 0.25, ease: "easeInOut" } 
+  }
 };
 
-export function InvestorDetailPage() {
-  const navigate = useNavigate();
-  const params = useParams();
-  const investorParam = safeDecodeURIComponent(params.investorKey ?? null);
+export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const investorParam = safeDecodeURIComponent(investorKey);
+
+  const handleClose = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("investor");
+    setSearchParams(next);
+  };
 
   const { loadState, loadError } = useDatasetLoader();
   const baseViews = useOwnershipViews();
@@ -200,8 +213,11 @@ export function InvestorDetailPage() {
 
   if (loadState !== "ready") {
     return (
-      <main className="min-h-screen bg-nebula px-8 py-5">
-        <div className="rounded-2xl border border-border bg-panel/45 p-8">
+      <>
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
+        <main className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-4xl overflow-y-auto glass-deep px-8 py-8 border-l border-white/10">
+          <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
+          <div className="rounded-2xl border border-border bg-panel/45 p-8">
           {loadState === "error" ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <AlertTriangle className="h-10 w-10 text-rose/60" />
@@ -215,25 +231,30 @@ export function InvestorDetailPage() {
           )}
         </div>
       </main>
+      </>
     );
   }
 
   if (!selectedInvestorId || !identity || !gayaInvestasi) {
     return (
-      <main className="min-h-screen bg-nebula px-8 py-5">
-        <div className="rounded-2xl border border-border bg-panel/45 p-8">
+      <>
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
+        <main className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-4xl overflow-y-auto glass-deep px-8 py-8 border-l border-white/10">
+          <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
+          <div className="rounded-2xl border border-border bg-panel/45 p-8">
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <Users className="h-12 w-12 text-muted/40" />
             <div className="text-lg font-semibold text-foreground">Investor tidak ditemukan</div>
             <p className="text-sm text-muted">
               Key <span className="font-mono text-teal">{investorParam ?? "-"}</span> belum ada di dataset aktif.
             </p>
-            <Link to="/" className="mt-2 inline-flex rounded-full border border-teal/30 bg-teal/5 px-4 py-1.5 text-sm text-teal hover:bg-teal/10">
-              ← Kembali ke Browse Universe
-            </Link>
+            <button type="button" onClick={handleClose} className="mt-2 inline-flex rounded-full border border-teal/30 bg-teal/5 px-4 py-1.5 text-sm text-teal hover:bg-teal/10">
+              ← Tutup Panel
+            </button>
           </div>
         </div>
       </main>
+      </>
     );
   }
 
@@ -241,23 +262,23 @@ export function InvestorDetailPage() {
   const GayaIcon = gayaInvestasi.Icon;
 
   return (
-    <motion.main
-      className="min-h-screen bg-nebula px-8 py-5"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-    >
-      <div className="flex w-full flex-col gap-4">
-        <GlobalHeader
-          title={identity.investorName}
-          subtitle={`Data per ${identity.snapshotDate} — profil investor dan portofolio IDX`}
-          allRows={views.allRows}
-          currentPage="investor"
-          currentId={identity.investorId}
-          activeInvestor={{ investorId: identity.investorId, investorName: identity.investorName }}
-          activeIssuer={portfolio[0] ? { shareCode: portfolio[0].shareCode } : null}
-        />
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
+      <motion.main
+        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-5xl overflow-y-auto glass-deep px-6 py-6 border-l border-white/10"
+        variants={sheetVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+      >
+        <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
+        <div className="flex w-full flex-col gap-6 pt-4">
+          <header className="pr-12">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {identity.investorName}
+            </h1>
+            <p className="mt-1 text-sm text-muted">Data per {identity.snapshotDate} — profil investor dan portofolio IDX</p>
+          </header>
 
         {/* ── Hero Section ── */}
         <motion.section
@@ -267,8 +288,11 @@ export function InvestorDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className={`rounded-full border px-3 py-0.5 text-xs font-medium ${typeBadge.bg} ${typeBadge.text} ${typeBadge.border}`}>
-                  {identity.investorType}
+                <span 
+                  className={`rounded-full border px-3 py-0.5 text-xs font-medium cursor-help ${typeBadge.bg} ${typeBadge.text} ${typeBadge.border}`}
+                  title={identity.investorType}
+                >
+                  {formatInvestorType(identity.investorType)}
                 </span>
                 <span className={`rounded-full border border-border px-3 py-0.5 text-xs font-medium ${localForeignColor(identity.localForeign)}`}>
                   {localForeignLabel(identity.localForeign)}
@@ -299,26 +323,28 @@ export function InvestorDetailPage() {
           <p className="mb-3 pl-[15px] text-sm text-muted">
             Ukur kekuatan dan konsentrasi posisi — seberapa fokus investor pada saham tertentu?
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-xl border border-border bg-panel-2/45 p-4">
-              <div className="section-title">Holdings</div>
-              <div className="stat-hero mt-2"><AnimatedNumber value={identity.holdingsCount} /></div>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[120px] rounded-xl border border-border bg-panel-2/45 p-4 flex flex-col justify-start">
+              <div className="section-title mb-2">Holders</div>
+              <div className="stat-hero"><AnimatedNumber value={identity.holdingsCount} /></div>
             </div>
-            <div className="rounded-xl border border-border bg-panel-2/45 p-4">
-              <div className="section-title">Total Shares</div>
-              <div className="stat-hero mt-2"><AnimatedNumber value={identity.totalShares} formatter={fmtNumber} /></div>
+            <div className="flex-[1.5] min-w-[170px] rounded-xl border border-border bg-panel-2/45 p-4 flex flex-col justify-start overflow-hidden">
+              <div className="section-title mb-2">Total Shares</div>
+              <div className="stat-hero truncate w-full" title={Intl.NumberFormat("id-ID").format(identity.totalShares)}>
+                <AnimatedNumber value={identity.totalShares} formatter={fmtNumber} />
+              </div>
             </div>
-            <div className="rounded-xl border border-border bg-panel-2/45 p-4">
-              <div className="section-title">Total % Hold</div>
-              <div className="stat-hero mt-2"><AnimatedNumber value={identity.totalPct} formatter={fmtPercent} /></div>
+            <div className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel-2/45 p-4 flex flex-col justify-start">
+              <div className="section-title mb-2">Total % Hold</div>
+              <div className="stat-hero"><AnimatedNumber value={identity.totalPct} formatter={fmtPercent} /></div>
             </div>
-            <div className="rounded-xl border border-border bg-panel-2/45 p-4">
-              <div className="section-title">Top 3 Weight</div>
-              <div className="stat-hero mt-2"><AnimatedNumber value={identity.top3Pct} formatter={fmtPercent} /></div>
+            <div className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel-2/45 p-4 flex flex-col justify-start">
+              <div className="section-title mb-2">Top 3 Weight</div>
+              <div className="stat-hero"><AnimatedNumber value={identity.top3Pct} formatter={fmtPercent} /></div>
             </div>
-            <div className="rounded-xl border border-border bg-panel-2/45 p-4">
-              <div className="section-title">HHI</div>
-              <div className="stat-hero mt-2"><AnimatedNumber value={identity.hhi} formatter={(n) => n.toFixed(0)} /></div>
+            <div className="flex-1 min-w-[120px] rounded-xl border border-border bg-panel-2/45 p-4 flex flex-col justify-start">
+              <div className="section-title mb-2">HHI</div>
+              <div className="stat-hero"><AnimatedNumber value={identity.hhi} formatter={(n) => n.toFixed(0)} /></div>
             </div>
           </div>
         </motion.section>
@@ -335,7 +361,12 @@ export function InvestorDetailPage() {
           <InvestorSankey
             investorName={identity.investorName}
             positions={portfolio}
-            onSelectEmiten={(shareCode) => navigate(`/emiten/${encodeURIComponent(shareCode)}`)}
+            onSelectEmiten={(shareCode) => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("investor");
+              next.set("emiten", shareCode);
+              setSearchParams(next);
+            }}
           />
         </motion.section>
 
@@ -352,10 +383,20 @@ export function InvestorDetailPage() {
             allRows={views.allRows}
             investorId={selectedInvestorId}
             snapshotDate={views.snapshotDate}
-            onSelectInvestor={(id) => navigate(`/investor/${encodeURIComponent(id)}`)}
+            onSelectInvestor={(id) => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("investor");
+              next.set("investor", id);
+              setSearchParams(next);
+            }}
             onSelectIssuer={(issuerId) => {
               const row = views.allRows.find((r) => getIssuerId(r) === issuerId);
-              if (row) navigate(`/emiten/${encodeURIComponent(row.shareCode)}`);
+              if (row) {
+                const next = new URLSearchParams(searchParams);
+                next.delete("investor");
+                next.set("emiten", row.shareCode);
+                setSearchParams(next);
+              }
             }}
           />
         </motion.section>
@@ -372,7 +413,7 @@ export function InvestorDetailPage() {
           <OwnershipTimelinePanel timeline={investorTimeline} />
         </motion.section>
 
-        {/* ── 6) HHI Concentration Gauge ── */}
+        {/* ── 5) Konsentrasi Portofolio (HHI) ── */}
         <motion.section
           className="rounded-2xl border border-border bg-panel/45 p-4"
           custom={5} variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}
@@ -381,10 +422,10 @@ export function InvestorDetailPage() {
           <p className="mb-3 pl-[15px] text-sm text-muted">
             Herfindahl-Hirschman Index — ukur seberapa terkonsentrasi portofolio investor pada sedikit saham.
           </p>
-          <HHIGauge hhi={identity.hhi} />
+          <HhiGauge hhi={identity.hhi} />
         </motion.section>
 
-        {/* ── 7) Co-Investor Network ── */}
+        {/* ── 6) Co-Investor Network ── */}
         <motion.section
           className="rounded-2xl border border-border bg-panel/45 p-4"
           custom={6} variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}
@@ -407,7 +448,11 @@ export function InvestorDetailPage() {
                 <div key={item.investorId} className="rounded-xl border border-border bg-panel-2/45 p-3 transition-colors hover:bg-panel-2/65">
                   <button
                     type="button"
-                    onClick={() => navigate(`/investor/${encodeURIComponent(item.investorId)}`)}
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams);
+                      next.set("investor", item.investorId);
+                      setSearchParams(next);
+                    }}
                     className="text-left"
                   >
                     <div className="text-sm font-semibold text-foreground">{item.investorName}</div>
@@ -421,7 +466,12 @@ export function InvestorDetailPage() {
                       <button
                         key={`${item.investorId}:${shareCode}`}
                         type="button"
-                        onClick={() => navigate(`/emiten/${encodeURIComponent(shareCode)}`)}
+                        onClick={() => {
+                          const next = new URLSearchParams(searchParams);
+                          next.delete("investor");
+                          next.set("emiten", shareCode);
+                          setSearchParams(next);
+                        }}
                         className="rounded-full border border-teal/20 bg-teal/5 px-2.5 py-0.5 font-mono text-[11px] font-medium text-teal transition-colors hover:bg-teal/15"
                       >
                         {shareCode}
@@ -434,7 +484,7 @@ export function InvestorDetailPage() {
           )}
         </motion.section>
 
-        {/* ── 8) Portfolio Table (Last) ── */}
+        {/* ── 7) Portfolio Table (Last) ── */}
         <motion.section
           className="rounded-2xl border border-border bg-panel/45 p-4"
           custom={7} variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}
@@ -445,9 +495,17 @@ export function InvestorDetailPage() {
           </p>
           <InvestorPortfolioTable
             positions={portfolio}
-            onSelectPosition={(pos) => navigate(`/emiten/${encodeURIComponent(pos.shareCode)}`)}
+            onSelectPosition={(pos) => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("investor");
+              next.set("emiten", pos.shareCode);
+              setSearchParams(next);
+            }}
           />
         </motion.section>
+
+        {/* ── 9) Frequent Co-investors (Afiliasi) ── */}
+        <FrequentCoinvestorsPanel currentInvestorId={selectedInvestorId} allRows={views.allRows} />
 
         {/* ── Footer ── */}
         <footer className="mt-6 flex justify-center pb-4 text-xs font-mono text-muted/40">
@@ -457,5 +515,6 @@ export function InvestorDetailPage() {
         </footer>
       </div>
     </motion.main>
+    </>
   );
 }

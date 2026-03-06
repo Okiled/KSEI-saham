@@ -1,9 +1,13 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Database, Loader2, Users } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { AlertTriangle, Database, Loader2, Users, RotateCcw } from "lucide-react";
 import { GlobalHeader } from "../components/global-header";
 import { UniverseStockTable, type UniverseStockRow } from "../components/universe-stock-table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { TopInvestorRanking } from "../components/top-investor-ranking";
+import { InvestorDemographics } from "../components/investor-demographics";
+import { SyndicateIntersectPanel } from "../components/syndicate-intersect-panel";
 import { useDatasetLoader } from "../hooks/use-dataset-loader";
 import { useOwnershipViews } from "../hooks/use-ownership-views";
 import { fmtNumber } from "../lib/utils";
@@ -63,7 +67,7 @@ const pageVariants: import("framer-motion").Variants = {
 };
 
 export function HomePage() {
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
 
   const filters = useAppStore((state) => state.filters);
@@ -72,6 +76,7 @@ export function HomePage() {
   const updateSelection = useAppStore((state) => state.updateSelection);
   const view = useAppStore((state) => state.view);
   const updateView = useAppStore((state) => state.updateView);
+  const resetFilters = useAppStore((state) => state.resetFilters);
 
   const { loadState, loadError, selectedDataset } = useDatasetLoader();
   const { allRows, universeItems } = useOwnershipViews({
@@ -150,9 +155,12 @@ export function HomePage() {
                 onChange={(event) => updateFilters({ queryText: event.target.value, queryMode: "all" })}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return;
-                  // If investor matches exist and no emiten matches, navigate to first investor
+                  // If investor matches exist and no emiten matches, open investor peek sheet
                   if (searchFilteredItems.length === 0 && investorMatches.length > 0) {
-                    navigate(`/investor/${encodeURIComponent(investorMatches[0].investorId)}`);
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("emiten");
+                    next.set("investor", investorMatches[0].investorId);
+                    setSearchParams(next);
                   }
                 }}
                 placeholder="Cari ticker, nama emiten, atau nama investor..."
@@ -166,7 +174,12 @@ export function HomePage() {
                     <button
                       key={inv.investorId}
                       type="button"
-                      onClick={() => navigate(`/investor/${encodeURIComponent(inv.investorId)}`)}
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("emiten");
+                        next.set("investor", inv.investorId);
+                        setSearchParams(next);
+                      }}
                       className="rounded-full border border-teal/20 bg-teal/5 px-2.5 py-0.5 font-mono text-[11px] font-medium text-teal transition-colors hover:bg-teal/15"
                     >
                       {inv.investorName.length > 30 ? `${inv.investorName.slice(0, 28)}…` : inv.investorName}
@@ -261,6 +274,18 @@ export function HomePage() {
               >
                 Free Float Rendah
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetFilters();
+                  setSignalFilter("all");
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-rose/30 bg-rose/10 px-3 py-1 font-medium text-rose transition-colors hover:bg-rose/20 ml-2"
+                title="Reset seluruh filter"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset Filter
+              </button>
             </div>
           </div>
         </section>
@@ -293,27 +318,56 @@ export function HomePage() {
             </div>
           </section>
         ) : (
-          <section className="space-y-2">
-            <div className="section-title">Browse Universe</div>
-            <p className="pl-[15px] text-sm text-muted">
-              Scan cepat emiten berdasarkan konsentrasi holder, komposisi lokal/asing, dan estimasi free float.
-            </p>
-            <UniverseStockTable
-              rows={displayRows}
-              onSelectIssuer={(issuerId) => {
-                const match = displayRows.find((item) => item.issuerId === issuerId);
-                if (!match) return;
-                setFocusIssuer(issuerId);
-                updateSelection({
-                  selectedIssuerId: issuerId,
-                  selectedInvestorId: null,
-                  selectedEdgeId: null,
-                  focusedEvidenceRowId: null,
-                });
-                navigate(`/emiten/${encodeURIComponent(match.shareCode)}`);
-              }}
-            />
-          </section>
+          <Tabs defaultValue="browse" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="browse">Browse Universe</TabsTrigger>
+              <TabsTrigger value="intelligence">Market Intelligence</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="browse" className="min-h-[400px]">
+              <section className="space-y-2">
+                <div className="section-title">Browse Universe</div>
+                <p className="pl-[15px] text-sm text-muted">
+                  Scan cepat emiten berdasarkan konsentrasi holder, komposisi lokal/asing, dan estimasi free float.
+                </p>
+                <UniverseStockTable
+                  rows={displayRows}
+                  onSelectIssuer={(issuerId) => {
+                    const match = displayRows.find((item) => item.issuerId === issuerId);
+                    if (!match) return;
+                    setFocusIssuer(issuerId);
+                    updateSelection({
+                      selectedIssuerId: issuerId,
+                      selectedInvestorId: null,
+                      selectedEdgeId: null,
+                      focusedEvidenceRowId: null,
+                    });
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("investor");
+                    next.set("emiten", match.shareCode);
+                    setSearchParams(next);
+                  }}
+                />
+              </section>
+            </TabsContent>
+
+            <TabsContent value="intelligence" className="min-h-[400px]">
+              <section className="space-y-4">
+                <div className="section-title">Market Intelligence</div>
+                <p className="pl-[15px] text-sm text-muted">
+                  Analisis makro dari seluruh pemegang saham di bursa.
+                </p>
+                <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+                  <TopInvestorRanking rows={allRows} />
+                  <InvestorDemographics rows={allRows} />
+                </div>
+              </section>
+
+              <div className="mt-8 border-t border-border/50 pt-8">
+                <SyndicateIntersectPanel allRows={allRows} />
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
 
         {/* ── Footer ── */}

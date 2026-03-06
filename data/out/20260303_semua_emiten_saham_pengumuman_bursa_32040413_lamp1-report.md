@@ -1,6 +1,6 @@
 # Completeness Report: 20260303_Semua Emiten Saham_Pengumuman Bursa_32040413_lamp1.pdf
 
-Generated: 2026-03-05T12:12:41.570Z
+Generated: 2026-03-06T03:41:13.220Z
 Rows: 7257
 Coverage pass: YES
 Miss pages: 0

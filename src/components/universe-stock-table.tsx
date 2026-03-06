@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Database, Lock, ShieldAlert, Layers } from "lucide-react";
+import { Database, Lock, ShieldAlert, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { fmtPercent } from "../lib/utils";
+import { NumberTicker } from "./number-ticker";
 
 export type UniverseStockRow = {
   issuerId: string;
@@ -43,10 +44,39 @@ function freeFloatColor(pct: number): string {
   return "text-teal";
 }
 
+type SortColumn = "shareCode" | "issuerName" | "topHolderPct" | "holderCount" | "localPct" | "freeFloatPct";
+
 export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = null }: UniverseStockTableProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [hoverData, setHoverData] = useState<{ row: UniverseStockRow; x: number; y: number } | null>(null);
-  const displayRows = rows;
+  
+  const [sortCol, setSortCol] = useState<SortColumn>("shareCode");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const toggleSort = (col: SortColumn) => {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+  };
+
+  const displayRows: UniverseStockRow[] = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortCol as keyof UniverseStockRow];
+      const bVal = b[sortCol as keyof UniverseStockRow];
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const cmp = aVal.localeCompare(bVal);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      
+      const v1 = Number(aVal) || 0;
+      const v2 = Number(bVal) || 0;
+      return sortDir === 'asc' ? v1 - v2 : v2 - v1;
+    });
+  }, [rows, sortCol, sortDir]);
 
   const rowVirtualizer = useVirtualizer({
     count: displayRows.length,
@@ -70,13 +100,13 @@ export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = nu
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-panel/35">
       <div className="grid grid-cols-[88px_1.7fr_100px_90px_90px_150px_110px] border-b border-border bg-panel-2/65 px-4 py-3 text-[11px] uppercase tracking-[0.1em] text-muted">
-        <span>Ticker</span>
-        <span>Emiten</span>
-        <span className="text-center">Risk</span>
-        <span className="text-right">Holders</span>
-        <span className="text-right">Top %</span>
-        <span>L/A Ratio</span>
-        <span className="text-right">Free Float</span>
+        <button type="button" onClick={() => toggleSort("shareCode")} className="flex items-center gap-1 hover:text-foreground outline-none">Ticker {sortCol === "shareCode" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("issuerName")} className="flex items-center gap-1 hover:text-foreground outline-none">Emiten {sortCol === "issuerName" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <div className="text-center">Risk</div>
+        <button type="button" onClick={() => toggleSort("holderCount")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">Holders {sortCol === "holderCount" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("topHolderPct")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">Top % {sortCol === "topHolderPct" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("localPct")} className="flex items-center gap-1 hover:text-foreground outline-none">L/A Ratio {sortCol === "localPct" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("freeFloatPct")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">Free Float {sortCol === "freeFloatPct" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
       </div>
 
       <div ref={parentRef} className="h-[560px] overflow-auto">
@@ -122,18 +152,30 @@ export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = nu
                     <RiskIcon className="h-3.5 w-3.5" />
                     <span>{risk.label}</span>
                   </div>
-                  <div className="text-right font-mono text-sm text-muted">{row.holderCount.toLocaleString("id-ID")}</div>
-                  <div className="text-right font-mono text-sm font-semibold text-foreground">{fmtPercent(row.topHolderPct)}</div>
-                  <div className="pr-2">
-                    <div className="flex h-3 overflow-hidden rounded-full bg-panel-2">
-                      <div className="h-full bg-teal/80 transition-all" style={{ width: `${Math.min(100, row.localPct)}%` }} />
-                      <div className="h-full bg-gold/80 transition-all" style={{ width: `${Math.min(100, row.foreignPct)}%` }} />
-                    </div>
-                    <div className="mt-1 text-[11px] text-muted">
-                      L {row.localPct.toFixed(1)}% | A {row.foreignPct.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className={`text-right font-mono text-sm ${freeFloatColor(row.freeFloatPct)}`}>{fmtPercent(row.freeFloatPct)}</div>
+                    <span className="text-right font-mono text-[13px] text-foreground">
+                      <NumberTicker value={row.holderCount} />
+                    </span>
+                    <span className="text-right font-mono text-[13px] text-foreground">
+                      <NumberTicker value={row.topHolderPct} decimalPlaces={1} />%
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <div className="flex h-1.5 w-[65px] overflow-hidden rounded-full bg-border">
+                        <div
+                          className="h-full bg-teal transition-all duration-300"
+                          style={{ width: `${(row.localPct / Math.max(0.1, row.localPct + row.foreignPct)) * 100}%` }}
+                        />
+                        <div
+                          className="h-full bg-gold transition-all duration-300"
+                          style={{ width: `${(row.foreignPct / Math.max(0.1, row.localPct + row.foreignPct)) * 100}%` }}
+                        />
+                      </div>
+                      <span className="ml-1 font-mono text-xs text-muted">
+                        <NumberTicker value={Math.round((row.localPct / Math.max(0.1, row.localPct + row.foreignPct)) * 100)} />%
+                      </span>
+                    </span>
+                    <span className={`text-right font-mono text-[13px] ${freeFloatColor(row.freeFloatPct)}`}>
+                      <NumberTicker value={row.freeFloatPct} decimalPlaces={1} />%
+                    </span>
                 </button>
               </div>
             );

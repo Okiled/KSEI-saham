@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GitBranch } from "lucide-react";
+import { GitBranch, RotateCcw } from "lucide-react";
 import { fmtPercent, truncate } from "../lib/utils";
 
 export type SankeyHolder = {
@@ -39,6 +39,8 @@ const CENTER_W = 240;
 export function OwnershipSankeyL2R({ issuerLabel, holders, onSelectInvestor }: OwnershipSankeyL2RProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
+  const [ignoredIds, setIgnoredIds] = useState<Set<string>>(new Set());
+  const [hoveredHolderId, setHoveredHolderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -50,12 +52,16 @@ export function OwnershipSankeyL2R({ issuerLabel, holders, onSelectInvestor }: O
     return () => ro.disconnect();
   }, []);
 
+  const activeHolders = useMemo(() => {
+    return holders.filter(h => !ignoredIds.has(h.investorId));
+  }, [holders, ignoredIds]);
+
   const limitedHolders = useMemo(() => {
-    const groupOrder = (lf: "L" | "A" | null) => (lf === "L" ? 0 : lf === "A" ? 1 : 2);
-    return [...holders]
-      .sort((a, b) => groupOrder(a.localForeign) - groupOrder(b.localForeign) || b.percentage - a.percentage || b.shares - a.shares)
+    const groupOrder = (lf: "L" | "A" | "U") => (lf === "L" ? 0 : lf === "A" ? 1 : 2);
+    return [...activeHolders]
+      .sort((a, b) => groupOrder(a.localForeign || "U") - groupOrder(b.localForeign || "U") || b.percentage - a.percentage || b.shares - a.shares)
       .slice(0, 24);
-  }, [holders]);
+  }, [activeHolders]);
 
   const height = Math.max(MIN_HEIGHT, limitedHolders.length * HOLDER_SLOT + 100);
 
@@ -98,7 +104,7 @@ export function OwnershipSankeyL2R({ issuerLabel, holders, onSelectInvestor }: O
     return { categoryNodes: cats, holderNodes: nodes };
   }, [limitedHolders, height, holderX]);
 
-  if (limitedHolders.length === 0) {
+  if (limitedHolders.length === 0 && ignoredIds.size === 0) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-panel/25 p-6 text-center" style={{ minHeight: MIN_HEIGHT }}>
         <GitBranch className="h-10 w-10 text-muted/30" />
@@ -107,6 +113,8 @@ export function OwnershipSankeyL2R({ issuerLabel, holders, onSelectInvestor }: O
       </div>
     );
   }
+
+  const handleRestoreAll = () => setIgnoredIds(new Set());
 
   const centerMidX = centerX + CENTER_W / 2;
   const centerMidY = centerY + CENTER_H / 2;
@@ -124,7 +132,17 @@ export function OwnershipSankeyL2R({ issuerLabel, holders, onSelectInvestor }: O
   });
 
   return (
-    <div ref={containerRef} className="rounded-2xl border border-border bg-panel/35 p-2 overflow-x-auto" style={{ width: "100%", minHeight: `${MIN_HEIGHT}px` }}>
+    <div ref={containerRef} className="relative rounded-2xl border border-border bg-panel/35 p-2 overflow-x-auto" style={{ width: "100%", minHeight: `${MIN_HEIGHT}px` }}>
+      {ignoredIds.size > 0 && (
+        <button 
+          onClick={handleRestoreAll}
+          className="absolute top-4 right-4 z-10 flex items-center gap-1.5 rounded-lg border border-teal/30 bg-teal/10 px-3 py-1.5 text-xs font-semibold text-teal shadow-sm transition-colors hover:bg-teal/20"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Restore {ignoredIds.size} Hidden
+        </button>
+      )}
+      
       {/* Keyframes defined in index.css */}
       <svg width={width} height={height} style={{ overflow: "visible" }}>
         {/* ── Flows: Category → Center → Holder ── */}
@@ -191,15 +209,39 @@ export function OwnershipSankeyL2R({ issuerLabel, holders, onSelectInvestor }: O
         {holderNodes.map((holder, idx) => {
           const color = CATEGORY_COLORS[holder.localForeign === "L" ? "L" : holder.localForeign === "A" ? "A" : "U"];
           const midY = holder.y + HOLDER_SLOT / 2;
+          const isHovered = hoveredHolderId === holder.investorId;
+          
           return (
-            <g key={`holder:${holder.investorId}`} onClick={() => onSelectInvestor(holder.investorId)} className="cursor-pointer" role="button" style={fadeStyle(400 + idx * 30)}>
-              <circle cx={holder.x} cy={midY} r={4.5} fill={color} />
-              <text x={holder.x + 12} y={midY + 4} style={{ fontSize: 11.5, fontWeight: 500, fill: "rgb(var(--text-primary))" }}>
+            <g 
+              key={`holder:${holder.investorId}`} 
+              onMouseEnter={() => setHoveredHolderId(holder.investorId)}
+              onMouseLeave={() => setHoveredHolderId(null)}
+              className="cursor-pointer" 
+              role="button" 
+              style={fadeStyle(400 + idx * 30)}
+            >
+              <circle cx={holder.x} cy={midY} r={isHovered ? 6 : 4.5} fill={color} onClick={() => onSelectInvestor(holder.investorId)} />
+              <text x={holder.x + 15} y={midY + 4} style={{ fontSize: 11.5, fontWeight: isHovered ? 700 : 500, fill: "rgb(var(--text-primary))" }} onClick={() => onSelectInvestor(holder.investorId)}>
                 {truncate(holder.investorName, 30)}
               </text>
-              <text x={holder.x + 260} y={midY + 4} textAnchor="end" style={{ fontSize: 11, fontFamily: "DM Mono", fontWeight: 600, fill: color }}>
+              <text x={holder.x + 280} y={midY + 4} textAnchor="end" style={{ fontSize: 11, fontFamily: "DM Mono", fontWeight: 600, fill: color }} onClick={() => onSelectInvestor(holder.investorId)}>
                 {fmtPercent(holder.percentage)}
               </text>
+              
+              {/* Hide Button (Sandbox) */}
+              {isHovered && (
+                <g 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIgnoredIds(prev => new Set([...prev, holder.investorId]));
+                  }}
+                  transform={`translate(${holder.x + 295}, ${midY - 8})`}
+                  className="hover:opacity-80 transition-opacity"
+                >
+                  <rect x={0} y={0} width={16} height={16} rx={4} fill="rgba(255,100,100,0.15)" />
+                  <text x={8} y={11.5} textAnchor="middle" fill="#ff6b6b" fontSize={10} fontWeight={900}>×</text>
+                </g>
+              )}
             </g>
           );
         })}

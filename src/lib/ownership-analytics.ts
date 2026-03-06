@@ -17,7 +17,7 @@ type DateBucket = {
   timestamp: number;
 };
 
-type UniverseIssuerItem = {
+export type UniverseIssuerItem = {
   issuerId: string;
   shareCode: string;
   issuerName: string;
@@ -30,6 +30,7 @@ type UniverseIssuerItem = {
   freeFloatPct: number;
   totalShares: number;
   signals: string[];
+  hhi: number;
 };
 
 const MONTH_INDEX: Record<string, number> = {
@@ -155,6 +156,7 @@ export function buildUniverseIssuerItems(rows: OwnershipRow[], snapshotDate: str
       foreignPct: number;
       unknownPct: number;
       totalShares: number;
+      hhiSqSum: number;
     }
   >();
 
@@ -172,6 +174,7 @@ export function buildUniverseIssuerItems(rows: OwnershipRow[], snapshotDate: str
         foreignPct: 0,
         unknownPct: 0,
         totalShares: 0,
+        hhiSqSum: 0,
       });
     }
     const item = map.get(issuerId)!;
@@ -181,6 +184,7 @@ export function buildUniverseIssuerItems(rows: OwnershipRow[], snapshotDate: str
     item.topHolderPct = Math.max(item.topHolderPct, pct);
     item.totalKnownPct += pct;
     item.totalShares += shares;
+    item.hhiSqSum += Math.pow(pct, 2);
     if (row.localForeign === "L") item.localPct += pct;
     else if (row.localForeign === "A") item.foreignPct += pct;
     else item.unknownPct += pct;
@@ -207,6 +211,7 @@ export function buildUniverseIssuerItems(rows: OwnershipRow[], snapshotDate: str
         freeFloatPct,
         totalShares: item.totalShares,
         signals,
+        hhi: item.hhiSqSum * 10000,
       };
     })
     .sort((a, b) => b.topHolderPct - a.topHolderPct || b.holderCount - a.holderCount);

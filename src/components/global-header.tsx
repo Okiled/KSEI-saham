@@ -1,5 +1,5 @@
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Home } from "lucide-react";
 import { GlobalSearch } from "./global-search";
 import type { OwnershipRow } from "../types/ownership";
 
@@ -25,7 +25,6 @@ export function GlobalHeader({
   activeIssuer = null,
   activeInvestor = null,
 }: GlobalHeaderProps) {
-  const navigate = useNavigate();
   const isDetailPage = Boolean(activeIssuer || activeInvestor);
 
   return (
@@ -33,24 +32,6 @@ export function GlobalHeader({
       {/* ── Back Button & Home ── */}
       {isDetailPage && (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="relative z-10 flex items-center gap-1.5 rounded-lg bg-white transition-all duration-150 ease-out hover:-translate-x-[3px] hover:border-teal hover:text-teal"
-            style={{
-              minHeight: 36,
-              fontFamily: "DM Mono, monospace",
-              fontSize: 13,
-              color: "#4a4640",
-              cursor: "pointer",
-              border: "1.5px solid rgba(0,0,0,0.13)",
-              borderRadius: 8,
-              padding: "8px 16px",
-            }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Kembali</span>
-          </button>
           <Link
             to="/"
             className="relative z-10 flex items-center gap-1.5 rounded-lg bg-white transition-all duration-150 ease-out hover:-translate-x-[3px] hover:border-teal hover:text-teal"
@@ -118,7 +99,7 @@ export function GlobalHeader({
               allRows={allRows}
               currentPage={currentPage}
               currentId={currentId}
-              onNavigate={(path) => navigate(path)}
+              onNavigate={() => {}}
             />
           </div>
         )}

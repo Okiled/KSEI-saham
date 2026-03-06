@@ -1,7 +1,7 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Briefcase } from "lucide-react";
-import { fmtNumber, fmtPercent } from "../lib/utils";
+import { Briefcase, ChevronDown, ChevronUp } from "lucide-react";
+import { NumberTicker } from "./number-ticker";
 import type { InvestorPortfolioPosition } from "../types/ownership";
 
 type InvestorPortfolioTableProps = {
@@ -9,14 +9,37 @@ type InvestorPortfolioTableProps = {
   onSelectPosition: (position: InvestorPortfolioPosition) => void;
 };
 
-
+type SortColumn = "shareCode" | "issuerName" | "percentage" | "shares" | "localForeign";
 
 export function InvestorPortfolioTable({ positions, onSelectPosition }: InvestorPortfolioTableProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
-  const sortedPositions = useMemo(
-    () => [...positions].sort((a, b) => b.percentage - a.percentage || b.shares - a.shares),
-    [positions],
-  );
+  const [sortCol, setSortCol] = useState<SortColumn>("percentage");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (col: SortColumn) => {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+  };
+
+  const sortedPositions = useMemo(() => {
+    return [...positions].sort((a, b) => {
+      const aVal = a[sortCol];
+      const bVal = b[sortCol];
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const cmp = aVal.localeCompare(bVal);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      
+      const v1 = Number(aVal) || 0;
+      const v2 = Number(bVal) || 0;
+      return sortDir === 'asc' ? v1 - v2 : v2 - v1;
+    });
+  }, [positions, sortCol, sortDir]);
 
   const maxPct = useMemo(() => Math.max(1, ...sortedPositions.map((p) => p.percentage)), [sortedPositions]);
 
@@ -42,11 +65,11 @@ export function InvestorPortfolioTable({ positions, onSelectPosition }: Investor
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-panel/35">
       <div className="grid grid-cols-[88px_1.7fr_160px_170px_100px] border-b border-border bg-panel-2/65 px-4 py-3 text-[11px] uppercase tracking-[0.1em] text-muted">
-        <span>Ticker</span>
-        <span>Emiten</span>
-        <span className="text-right">% Hold</span>
-        <span className="text-right">Shares</span>
-        <span className="text-center">Status</span>
+        <button type="button" onClick={() => toggleSort("shareCode")} className="flex items-center gap-1 hover:text-foreground outline-none">Ticker {sortCol === "shareCode" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("issuerName")} className="flex items-center gap-1 hover:text-foreground outline-none">Emiten {sortCol === "issuerName" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("percentage")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">% Hold {sortCol === "percentage" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("shares")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">Shares {sortCol === "shares" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("localForeign")} className="flex items-center justify-center gap-1 hover:text-foreground outline-none mx-auto">Status {sortCol === "localForeign" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
       </div>
       <div ref={parentRef} className="overflow-auto" style={{ maxHeight: 600 }}>
         <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
@@ -71,9 +94,13 @@ export function InvestorPortfolioTable({ positions, onSelectPosition }: Investor
                       style={{ width: `${barWidth}%` }} 
                     />
                   </span>
-                  <span className="font-mono text-sm font-semibold text-foreground">{fmtPercent(row.percentage)}</span>
+                  <span className="font-mono text-sm font-semibold text-foreground">
+                    <NumberTicker value={row.percentage} decimalPlaces={2} />%
+                  </span>
                 </span>
-                <span className="text-right font-mono text-[13px] text-foreground">{fmtNumber(row.shares)}</span>
+                <span className="text-right font-mono text-[13px] text-foreground">
+                  <NumberTicker value={row.shares} />
+                </span>
                 <span className="flex items-center justify-center">
                   <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
                     row.localForeign === "L" ? "border-teal/30 bg-teal/10 text-teal" : 

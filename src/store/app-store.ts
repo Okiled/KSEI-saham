@@ -177,14 +177,21 @@ export const useAppStore = create<AppState>((set) => ({
   setInvestorTagsById: (investorTagsById) => set({ investorTagsById }),
   updateFilters: (patch) =>
     set((state) => {
-      const next: FiltersState = {
-        ...state.filters,
-        ...patch,
-        investorTypes: patch.investorTypes ? new Set(patch.investorTypes) : new Set(state.filters.investorTypes),
-        nationalities: patch.nationalities ? new Set(patch.nationalities) : new Set(state.filters.nationalities),
-        domiciles: patch.domiciles ? new Set(patch.domiciles) : new Set(state.filters.domiciles),
-        tagFilters: patch.tagFilters ? new Set(patch.tagFilters) : new Set(state.filters.tagFilters),
-      };
+      const { filters } = state;
+      const next: FiltersState = { ...filters, ...patch };
+      
+      if (patch.investorTypes !== undefined) next.investorTypes = new Set(patch.investorTypes);
+      else next.investorTypes = filters.investorTypes;
+
+      if (patch.nationalities !== undefined) next.nationalities = new Set(patch.nationalities);
+      else next.nationalities = filters.nationalities;
+
+      if (patch.domiciles !== undefined) next.domiciles = new Set(patch.domiciles);
+      else next.domiciles = filters.domiciles;
+
+      if (patch.tagFilters !== undefined) next.tagFilters = new Set(patch.tagFilters);
+      else next.tagFilters = filters.tagFilters;
+
       return { filters: next };
     }),
   resetFilters: () => set({ filters: createDefaultFilters() }),

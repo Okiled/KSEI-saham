@@ -17,6 +17,7 @@ const config: Config = {
         border: "rgba(0,0,0,0.08)",
         "border-strong": "rgba(0,0,0,0.13)",
         teal: "rgb(var(--teal) / <alpha-value>)",
+        amber: "rgb(var(--amber) / <alpha-value>)",
         gold: "rgb(var(--gold) / <alpha-value>)",
         rose: "rgb(var(--rose) / <alpha-value>)",
         violet: "rgb(var(--violet) / <alpha-value>)",

@@ -8,7 +8,7 @@ type AnimatedNumberProps = {
 
 export function AnimatedNumber({
   value,
-  duration = 1000,
+  duration = 500,
   formatter = (n: number) => n.toLocaleString("id-ID"),
 }: AnimatedNumberProps) {
   const [display, setDisplay] = useState(value);

@@ -1,7 +1,8 @@
-import { useMemo, useRef } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Users } from "lucide-react";
-import { fmtNumber, fmtPercent } from "../lib/utils";
+import { Users, ChevronDown, ChevronUp } from "lucide-react";
+import { formatInvestorType } from "../lib/utils";
+import { NumberTicker } from "./number-ticker";
 import type { IssuerHolderPosition } from "../types/ownership";
 
 type OwnershipHolderTableProps = {
@@ -21,12 +22,38 @@ function statusLabel(localForeign: "L" | "A" | null): string {
   return "—";
 }
 
+type SortColumn = "investorName" | "investorType" | "percentage" | "shares";
+
 export function OwnershipHolderTable({ holders, onSelectInvestor }: OwnershipHolderTableProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
-  const sorted = useMemo(
-    () => [...holders].sort((a, b) => b.percentage - a.percentage || b.shares - a.shares),
-    [holders],
-  );
+  
+  const [sortCol, setSortCol] = useState<SortColumn>("percentage");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (col: SortColumn) => {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    return [...holders].sort((a, b) => {
+      const aVal = a[sortCol as keyof IssuerHolderPosition];
+      const bVal = b[sortCol as keyof IssuerHolderPosition];
+      
+      if (typeof aVal === 'string' || typeof bVal === 'string') {
+         const cmp = (aVal?.toString() || "").localeCompare(bVal?.toString() || "");
+         return sortDir === 'asc' ? cmp : -cmp;
+      }
+      
+      const v1 = Number(aVal) || 0;
+      const v2 = Number(bVal) || 0;
+      return sortDir === 'asc' ? v1 - v2 : v2 - v1;
+    });
+  }, [holders, sortCol, sortDir]);
 
   const maxPct = useMemo(() => Math.max(1, ...sorted.map((h) => h.percentage)), [sorted]);
 
@@ -51,11 +78,11 @@ export function OwnershipHolderTable({ holders, onSelectInvestor }: OwnershipHol
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-panel/35">
-      <div className="grid grid-cols-[1.8fr_80px_150px_140px] border-b border-border bg-panel-2/65 px-4 py-3 text-[11px] uppercase tracking-[0.1em] text-muted">
-        <span>Holder</span>
-        <span>Tipe</span>
-        <span className="text-right">% Hold</span>
-        <span className="text-right">Shares</span>
+      <div className="grid grid-cols-[minmax(110px,1.8fr)_100px_130px_120px] gap-3 border-b border-border bg-panel-2/65 px-4 py-3 text-[11px] uppercase tracking-[0.1em] text-muted">
+        <button type="button" onClick={() => toggleSort("investorName")} className="flex items-center gap-1 hover:text-foreground outline-none">Holder {sortCol === "investorName" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("investorType")} className="flex items-center gap-1 hover:text-foreground outline-none">Tipe {sortCol === "investorType" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("percentage")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">% Hold {sortCol === "percentage" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
+        <button type="button" onClick={() => toggleSort("shares")} className="flex items-center justify-end gap-1 hover:text-foreground outline-none ml-auto">Shares {sortCol === "shares" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>)}</button>
       </div>
       <div ref={parentRef} className="h-[460px] overflow-auto">
         <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
@@ -67,21 +94,27 @@ export function OwnershipHolderTable({ holders, onSelectInvestor }: OwnershipHol
                 key={`${row.issuerId}:${row.investorId}`}
                 type="button"
                 onClick={() => onSelectInvestor(row.investorId)}
-                className="absolute left-0 right-0 grid grid-cols-[1.8fr_80px_150px_140px] items-center border-b border-border/55 px-4 py-2 text-left transition-all hover:border-l-[3px] hover:border-l-teal/60 hover:bg-panel-2/50"
+                className="absolute left-0 right-0 grid grid-cols-[minmax(110px,1.8fr)_100px_130px_120px] gap-3 items-center border-b border-border/55 px-4 py-2 text-left transition-all hover:border-l-[3px] hover:border-l-teal/60 hover:bg-panel-2/50"
                 style={{ transform: `translateY(${virtualRow.start}px)`, height: `${virtualRow.size}px` }}
               >
                 <span className="flex items-center gap-2 truncate">
                   <span className="truncate text-sm font-medium text-foreground">{row.investorName}</span>
                   <span className={`shrink-0 text-[11px] font-semibold ${statusTone(row.localForeign)}`}>{statusLabel(row.localForeign)}</span>
                 </span>
-                <span className="font-mono text-xs text-muted">{(row.investorType ?? "—").toUpperCase()}</span>
+                <span className="truncate text-[11px] text-muted pr-2" title={(row.investorType ?? "—").toUpperCase()}>
+                  {formatInvestorType(row.investorType)}
+                </span>
                 <span className="flex items-center justify-end gap-2">
                   <span className="h-1.5 rounded-full bg-teal/20" style={{ width: "50px" }}>
                     <span className="block h-full rounded-full bg-teal/70" style={{ width: `${barWidth}%` }} />
                   </span>
-                  <span className="font-mono text-sm font-semibold text-foreground">{fmtPercent(row.percentage)}</span>
+                  <span className="font-mono text-sm font-semibold text-foreground">
+                    <NumberTicker value={row.percentage} decimalPlaces={2} />%
+                  </span>
                 </span>
-                <span className="text-right font-mono text-sm text-muted">{fmtNumber(row.shares)}</span>
+                <span className="text-right font-mono text-sm text-muted">
+                  <NumberTicker value={row.shares} />
+                </span>
               </button>
             );
           })}

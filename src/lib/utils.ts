@@ -26,3 +26,25 @@ export function freeFloatContext(pct: number): { label: string; color: string } 
   if (pct <= 40) return { label: "Moderat", color: "text-foreground" };
   return { label: "Cukup Likuid", color: "text-teal" };
 }
+
+export function formatInvestorType(code: string | null | undefined): string {
+  const norm = (code ?? "").toUpperCase().trim();
+  switch (norm) {
+    case "IB": return "Institusi Bank";
+    case "SC": return "Perusahaan Efek";
+    case "IS": return "Asuransi";
+    case "MF": return "Reksadana";
+    case "PF": return "Dana Pensiun";
+    case "CP": return "Korporasi";
+    case "IND": return "Individu";
+    case "FD": return "Yayasan";
+    case "OT": return "Lainnya";
+    default: return norm || "UNKNOWN";
+  }
+}
+
+export function formatLocalForeign(code: string | null | undefined): string {
+  if (code === "A") return "Asing";
+  if (code === "L") return "Lokal";
+  return "Unknown";
+}

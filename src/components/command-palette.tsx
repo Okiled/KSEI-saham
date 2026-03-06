@@ -3,8 +3,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import Fuse from "fuse.js";
 import { Search } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { getInvestorId, getIssuerId } from "../lib/graph";
+import { formatInvestorType } from "../lib/utils";
 import { useAppStore } from "../store/app-store";
 import type { InvestorTag } from "../store/app-store";
 import type { OwnershipRow } from "../types/ownership";
@@ -58,7 +59,7 @@ function paletteBadgeClass(label: string): string {
 }
 
 export function CommandPalette() {
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const updateSelection = useAppStore((s) => s.updateSelection);
@@ -135,7 +136,7 @@ export function CommandPalette() {
         label: item.label,
         type: "investor",
         targetId: item.targetId,
-        subtitle: `${item.investorType} | ${item.nationality} | ${item.domicile}`,
+        subtitle: `${formatInvestorType(item.investorType)} | ${item.nationality} | ${item.domicile}`,
         badges,
         badgeText: badges.join(" "),
       };
@@ -198,7 +199,12 @@ export function CommandPalette() {
                         selectedEdgeId: null,
                       });
                       const code = entry.label.trim().toUpperCase();
-                      if (code) navigate(`/emiten/${encodeURIComponent(code)}`);
+                      if (code) {
+                        const nextParams = new URLSearchParams(searchParams);
+                        nextParams.delete("investor");
+                        nextParams.set("emiten", code);
+                        setSearchParams(nextParams);
+                      }
                     } else {
                       setFocusInvestor(entry.targetId);
                       updateSelection({
@@ -206,7 +212,10 @@ export function CommandPalette() {
                         selectedIssuerId: null,
                         selectedEdgeId: null,
                       });
-                      navigate(`/investor/${encodeURIComponent(entry.targetId)}`);
+                      const nextParams = new URLSearchParams(searchParams);
+                      nextParams.delete("emiten");
+                      nextParams.set("investor", entry.targetId);
+                      setSearchParams(nextParams);
                     }
                     setOpen(false);
                   }}

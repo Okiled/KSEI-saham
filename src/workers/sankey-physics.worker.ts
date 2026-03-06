@@ -25,10 +25,7 @@ type DisplayNode = {
   height: number;
 };
 
-type PositionedNode = DisplayNode & {
-  x: number;
-  y: number;
-};
+// (Unused `PositionedNode` type removed for linting compliance)
 
 type SimulationLayoutNode = SimulationNodeDatum & {
   id: string;

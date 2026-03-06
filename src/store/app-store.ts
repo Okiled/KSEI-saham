@@ -11,6 +11,7 @@ export type FiltersState = {
   queryMode: QueryMode;
   minPercentage: number;
   minFreeFloat: number;
+  freeFloatEnabled: boolean;
   localEnabled: boolean;
   foreignEnabled: boolean;
   unknownEnabled: boolean;
@@ -92,6 +93,7 @@ function createDefaultFilters(): FiltersState {
     queryMode: "all",
     minPercentage: 0,
     minFreeFloat: 0,
+    freeFloatEnabled: false,
     localEnabled: true,
     foreignEnabled: true,
     unknownEnabled: true,

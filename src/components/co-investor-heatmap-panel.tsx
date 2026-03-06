@@ -60,17 +60,17 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
 
   return (
     <div className="rounded-2xl border border-border bg-panel/35 p-4">
-      <div className="mb-3 w-full">
-        <table className="w-full border-collapse text-[9px]">
+      <div className="mb-3 w-full overflow-x-auto overflow-y-hidden pb-4">
+        <table className="border-collapse text-[9px] w-max">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 w-1/4 max-w-[120px] bg-panel-2/85 p-1 text-left font-medium text-muted">Holder</th>
+              <th className="sticky left-0 z-10 w-[120px] min-w-[120px] max-w-[120px] bg-panel-2/85 p-1 text-left font-medium text-muted">Holder</th>
               {overlap.holderIds.map((holderId) => (
-                <th key={`h-col:${holderId}`} className="p-0.5 text-center">
+                <th key={`h-col:${holderId}`} className="w-[56px] min-w-[56px] max-w-[56px] p-0.5 text-center">
                   <button
                     type="button"
                     onClick={() => onSelectInvestor(holderId)}
-                    className="block w-full max-w-[56px] rounded px-0.5 py-0.5 text-[8px] leading-tight text-muted transition-colors hover:bg-teal/10 hover:text-teal truncate"
+                    className="block w-full rounded px-0.5 py-0.5 text-[8px] leading-tight text-muted transition-colors hover:bg-teal/10 hover:text-teal truncate"
                     title={overlap.holderNamesById[holderId]}
                   >
                     {truncate(overlap.holderNamesById[holderId] ?? holderId, 10)}
@@ -82,7 +82,7 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
           <tbody>
             {overlap.holderIds.map((rowHolderId) => (
               <tr key={`row:${rowHolderId}`}>
-                <th className="sticky left-0 z-10 max-w-[120px] bg-panel-2/85 p-1 text-left">
+                <th className="sticky left-0 z-10 w-[120px] min-w-[120px] max-w-[120px] bg-panel-2/85 p-1 text-left">
                   <button
                     type="button"
                     onClick={() => onSelectInvestor(rowHolderId)}
@@ -97,11 +97,11 @@ export function CoInvestorHeatmapPanel({ overlap, onSelectInvestor, onSelectIssu
                   const count = cell?.commonIssuerCount ?? 0;
                   const isDiag = rowHolderId === colHolderId;
                   return (
-                    <td key={`cell:${rowHolderId}:${colHolderId}`} className="p-px">
+                    <td key={`cell:${rowHolderId}:${colHolderId}`} className="w-[56px] min-w-[56px] max-w-[56px] p-px text-center align-middle">
                       <button
                         type="button"
                         onClick={() => setActiveCell(cell ?? null)}
-                        className="mx-auto block h-6 w-full min-w-[24px] max-w-[42px] rounded border border-border/40 font-mono text-[9px] font-medium transition-all duration-150 ease-expo-out hover:z-10 hover:scale-[1.15] hover:brightness-110 hover:shadow-sm"
+                        className="mx-auto block h-6 w-[42px] rounded border border-border/40 font-mono text-[9px] font-medium transition-all duration-150 ease-expo-out hover:z-10 hover:scale-[1.15] hover:brightness-110 hover:shadow-sm"
                         style={{
                           backgroundColor: intensityColor(count, isDiag ? prepared.maxDiagonal : prepared.maxOffDiagonal, isDiag),
                           color: count > (isDiag ? prepared.maxDiagonal * 0.5 : prepared.maxOffDiagonal * 0.5) ? "white" : "rgb(var(--text-primary))",

@@ -22,6 +22,7 @@ type UniverseStockTableProps = {
   rows: UniverseStockRow[];
   onSelectIssuer: (issuerId: string) => void;
   selectedIssuerId?: string | null;
+  targetFreeFloat?: number | null;
 };
 
 /* ── Domain Expert: IDX Konsentrasi Risk ── */
@@ -46,12 +47,26 @@ function freeFloatColor(pct: number): string {
 
 type SortColumn = "shareCode" | "issuerName" | "topHolderPct" | "holderCount" | "localPct" | "freeFloatPct";
 
-export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = null }: UniverseStockTableProps) {
+export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = null, targetFreeFloat = null }: UniverseStockTableProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [hoverData, setHoverData] = useState<{ row: UniverseStockRow; x: number; y: number } | null>(null);
   
   const [sortCol, setSortCol] = useState<SortColumn>("shareCode");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Keep track of the last target free float to auto-sort when it changes
+  const lastTargetRef = useRef(targetFreeFloat);
+  if (targetFreeFloat !== null && targetFreeFloat !== lastTargetRef.current) {
+    if (sortCol !== "freeFloatPct") {
+      setSortCol("freeFloatPct");
+      setSortDir("asc");
+    }
+    lastTargetRef.current = targetFreeFloat;
+  } else if (targetFreeFloat === null && lastTargetRef.current !== null) {
+    lastTargetRef.current = null;
+    setSortCol("shareCode");
+    setSortDir("asc");
+  }
 
   const toggleSort = (col: SortColumn) => {
     if (sortCol === col) {
@@ -64,6 +79,13 @@ export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = nu
 
   const displayRows: UniverseStockRow[] = useMemo(() => {
     return [...rows].sort((a, b) => {
+      // Custom proximity sort if sorting by free float and a target is active
+      if (sortCol === "freeFloatPct" && targetFreeFloat !== null) {
+        const diffA = Math.abs((a.freeFloatPct || 0) - targetFreeFloat);
+        const diffB = Math.abs((b.freeFloatPct || 0) - targetFreeFloat);
+        return sortDir === "asc" ? diffA - diffB : diffB - diffA;
+      }
+
       const aVal = a[sortCol as keyof UniverseStockRow];
       const bVal = b[sortCol as keyof UniverseStockRow];
       
@@ -76,7 +98,7 @@ export function UniverseStockTable({ rows, onSelectIssuer, selectedIssuerId = nu
       const v2 = Number(bVal) || 0;
       return sortDir === 'asc' ? v1 - v2 : v2 - v1;
     });
-  }, [rows, sortCol, sortDir]);
+  }, [rows, sortCol, sortDir, targetFreeFloat]);
 
   const rowVirtualizer = useVirtualizer({
     count: displayRows.length,

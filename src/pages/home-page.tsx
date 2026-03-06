@@ -85,17 +85,30 @@ export function HomePage() {
 
   const investorOptions = useMemo(() => uniqueInvestorOptions(allRows), [allRows]);
 
-  const searchFilteredItems = useMemo(() => {
+  const filteredUniverse = useMemo(() => {
     let items = universeItems;
-    if (filters.minFreeFloat > 0) {
-      items = items.filter((row) => row.freeFloatPct >= filters.minFreeFloat);
+
+    items = items.filter((row) => {
+      if (filters.localEnabled && row.foreignPct < 50) return true;
+      if (filters.foreignEnabled && row.foreignPct >= 50) return true;
+      if (filters.unknownEnabled && row.freeFloatPct == null) return true;
+      return false;
+    });
+
+    if (filters.freeFloatEnabled) {
+      items = items.filter((row) => row.freeFloatPct != null && row.freeFloatPct >= filters.minFreeFloat);
     }
+
+    if (filters.minPercentage && filters.minPercentage > 0) {
+      items = items.filter((row) => row.topHolderPct >= filters.minPercentage);
+    }
+    
     const q = filters.queryText.trim().toUpperCase();
     if (!q) return items;
     return items.filter(
       (row) => row.shareCode.toUpperCase().includes(q) || row.issuerName.toUpperCase().includes(q),
     );
-  }, [filters.queryText, filters.minFreeFloat, universeItems]);
+  }, [filters.queryText, filters.minFreeFloat, filters.freeFloatEnabled, universeItems, filters.localEnabled, filters.foreignEnabled, filters.unknownEnabled, filters.minPercentage]);
 
   // Investor matches for the search query
   const investorMatches = useMemo(() => {
@@ -107,8 +120,8 @@ export function HomePage() {
   }, [filters.queryText, investorOptions]);
 
   const displayRows = useMemo(
-    () => sortUniverseRows(applySignalFilter(searchFilteredItems, signalFilter), view.universeSort),
-    [searchFilteredItems, signalFilter, view.universeSort],
+    () => sortUniverseRows(applySignalFilter(filteredUniverse, signalFilter), view.universeSort),
+    [filteredUniverse, signalFilter, view.universeSort],
   );
 
 
@@ -156,7 +169,7 @@ export function HomePage() {
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return;
                   // If investor matches exist and no emiten matches, open investor peek sheet
-                  if (searchFilteredItems.length === 0 && investorMatches.length > 0) {
+                  if (filteredUniverse.length === 0 && investorMatches.length > 0) {
                     const next = new URLSearchParams(searchParams);
                     next.delete("emiten");
                     next.set("investor", investorMatches[0].investorId);
@@ -208,20 +221,31 @@ export function HomePage() {
           </div>
 
           <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_2fr]">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="section-title">Min freefloat %</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={filters.minFreeFloat}
-                onChange={(event) => updateFilters({ minFreeFloat: Number.parseFloat(event.target.value) || 0 })}
-              />
-              <span className="font-mono text-xs text-muted">{filters.minFreeFloat.toFixed(0)}%</span>
-            </label>
+            <div className="flex flex-col gap-1 text-sm bg-panel-2/30 p-2 rounded-xl border border-border/50">
+              <label className="flex items-center gap-2 mb-1">
+                <input 
+                  type="checkbox" 
+                  className="rounded text-teal focus:ring-teal bg-panel border-border" 
+                  checked={filters.freeFloatEnabled} 
+                  onChange={(e) => updateFilters({ freeFloatEnabled: e.target.checked })}
+                />
+                <span className="section-title">Min freefloat %</span>
+              </label>
+              <div className={`flex items-center gap-3 transition-opacity ${filters.freeFloatEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="flex-1"
+                  value={filters.minFreeFloat}
+                  onChange={(event) => updateFilters({ minFreeFloat: Number.parseFloat(event.target.value) || 0 })}
+                />
+                <span className="font-mono text-xs text-muted w-8 text-right">{filters.minFreeFloat.toFixed(0)}%</span>
+              </div>
+            </div>
 
-            <div className="flex flex-wrap items-end gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm bg-panel-2/30 p-2 rounded-xl border border-border/50">
               <button
                 type="button"
                 onClick={() => updateFilters({ localEnabled: !filters.localEnabled })}
@@ -326,12 +350,29 @@ export function HomePage() {
 
             <TabsContent value="browse" className="min-h-[400px]">
               <section className="space-y-2">
-                <div className="section-title">Browse Universe</div>
-                <p className="pl-[15px] text-sm text-muted">
-                  Scan cepat emiten berdasarkan konsentrasi holder, komposisi lokal/asing, dan estimasi free float.
-                </p>
-                <UniverseStockTable
+                <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 section-title mb-1">
+                      <div className="h-3.5 w-1 rounded-sm bg-teal" /> BROWSE UNIVERSE
+                    </div>
+                    <p className="text-sm text-muted">
+                      Scan cepat emiten berdasarkan konsentrasi holder, komposisi lokal/asing, dan estimasi free float.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!filters.localEnabled && <span className="rounded-full bg-border/40 px-2 py-0.5 text-[10px] font-medium text-muted">Tanpa Lokal</span>}
+                    {!filters.foreignEnabled && <span className="rounded-full bg-border/40 px-2 py-0.5 text-[10px] font-medium text-muted">Tanpa Asing</span>}
+                    {filters.freeFloatEnabled && <span className="rounded-full bg-teal/10 px-2 py-0.5 text-[10px] font-medium text-teal border border-teal/20">FF &gt;= {filters.minFreeFloat}%</span>}
+                    {filters.minPercentage > 0 && <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-medium text-gold border border-gold/20">Top &gt;= {filters.minPercentage}%</span>}
+                    <span className="text-xs font-mono font-medium text-foreground tracking-tighter bg-panel-2 px-2 py-1 rounded-md border border-border shadow-sm">
+                      {filteredUniverse.length} Matches
+                    </span>
+                  </div>
+                </div>
+
+                <UniverseStockTable 
                   rows={displayRows}
+                  targetFreeFloat={filters.freeFloatEnabled ? filters.minFreeFloat : undefined}
                   onSelectIssuer={(issuerId) => {
                     const match = displayRows.find((item) => item.issuerId === issuerId);
                     if (!match) return;

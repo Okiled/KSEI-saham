@@ -6,6 +6,34 @@ dist/
 vite.config.js
 vite.config.d.ts
 
+# Generated dataset artifacts
+data/out/
+public/data/
+public/pdfs/
+
+# Local scratch files
+test_api.ts
+
+# Internal docs / agent metadata
+AGENTS.md
+.agent/
+.github/workflows/fetch-market-data.yml
+
+# Local deploy/cache
+.vercel/
+.vite/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

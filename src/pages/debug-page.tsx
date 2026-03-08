@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { EvidenceViewer } from "../components/evidence-viewer";
+import { GlobalHeader } from "../components/global-header";
+import { EditorialFooter, PageShell } from "../components/page-shell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -69,27 +71,43 @@ export function DebugPage() {
 
   if (!parsed && (loadState === "loading-index" || loadState === "loading-dataset" || parseStatus === "parsing")) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
-        <Card className="w-full max-w-lg">
+      <PageShell>
+        <GlobalHeader
+          title="Debug"
+          subtitle="Tool operasional untuk verifikasi coverage, invalid rows, dan evidence."
+          allRows={[]}
+          currentPage="debug"
+          actions={[{ label: "Back to Explore", to: "/explore", variant: "secondary" }]}
+        />
+        <Card className="mx-auto w-full max-w-lg">
           <CardContent className="space-y-4 py-8">
             <p className="text-sm text-muted">Memuat dataset debug...</p>
             <Progress value={parseProgress} className="h-2.5" />
           </CardContent>
         </Card>
-      </main>
+        <EditorialFooter />
+      </PageShell>
     );
   }
 
   if (!parsed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <Card className="w-full max-w-lg">
+      <PageShell>
+        <GlobalHeader
+          title="Debug"
+          subtitle="Tool operasional untuk verifikasi coverage, invalid rows, dan evidence."
+          allRows={[]}
+          currentPage="debug"
+          actions={[{ label: "Back to Explore", to: "/explore", variant: "secondary" }]}
+        />
+        <Card className="mx-auto w-full max-w-lg">
           <CardContent className="space-y-3 py-8">
             <p className="text-sm text-muted">{loadError ?? parseError ?? "Belum ada data parse."}</p>
             <Button onClick={() => navigate("/")}>Kembali ke Dashboard</Button>
           </CardContent>
         </Card>
-      </main>
+        <EditorialFooter />
+      </PageShell>
     );
   }
 
@@ -100,7 +118,17 @@ export function DebugPage() {
       : parsed.report.invalidRows === 0);
 
   return (
-    <main className="min-h-screen bg-background px-4 py-4 md:px-6">
+    <PageShell>
+      <GlobalHeader
+        title="Debug"
+        subtitle="Coverage report, miss samples, invalid rows, dan evidence viewer untuk quality control parser."
+        allRows={parsed.rows}
+        currentPage="debug"
+        actions={[
+          { label: "Back to Explore", to: "/explore", variant: "secondary" },
+          { label: "Browse Universe", to: "/", variant: "ghost" },
+        ]}
+      />
       <div className="mx-auto mb-4 flex max-w-[1700px] items-center justify-between">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
@@ -290,7 +318,8 @@ export function DebugPage() {
           </CardContent>
         </Card>
       </div>
-    </main>
+      <EditorialFooter />
+    </PageShell>
   );
 }
 

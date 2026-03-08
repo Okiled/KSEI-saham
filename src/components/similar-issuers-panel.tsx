@@ -44,7 +44,7 @@ export function SimilarIssuersPanel({ currentIssuerId, allIssuers }: SimilarIssu
         {similar.map((match) => (
           <Link
             key={match.issuer.issuerId}
-            to={`/emiten/${encodeURIComponent(match.issuer.issuerId.split(":")[1] || match.issuer.issuerId)}`}
+            to={`/emiten/${encodeURIComponent(match.issuer.shareCode || match.issuer.issuerId.replace(/^issuer:/, ""))}`}
             className="group flex flex-col justify-between rounded-xl border border-border/50 bg-white/5 p-4 transition-all hover:border-teal/30 hover:bg-teal/5"
           >
             <div>

@@ -1,19 +1,16 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { AlertTriangle, Bug, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { CommandPalette } from "../components/command-palette";
-import { DNAStrip } from "../components/dna-strip";
-import { EvidenceViewer } from "../components/evidence-viewer";
 import { FiltersPanel } from "../components/filters-panel";
+import { GlobalHeader } from "../components/global-header";
 import { IssuerAccordion } from "../components/issuer-accordion";
+import { EditorialFooter, PageShell, SectionIntro } from "../components/page-shell";
 import { OwnershipTable } from "../components/ownership-table";
-import { PolarPrism } from "../components/polar-prism";
-import { SankeyFlow } from "../components/sankey-flow";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useDerivedData } from "../hooks/use-derived-data";
 import { getInvestorId, getIssuerId } from "../lib/graph";
 import { fmtPercent } from "../lib/utils";
@@ -47,28 +44,20 @@ type LoadState = "loading-index" | "loading-dataset" | "ready" | "error";
 function DashboardSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-12">
-      <Card className="md:col-span-4">
+      <Card className="md:col-span-12">
         <CardHeader>
-          <CardTitle>DNA Strip</CardTitle>
+          <CardTitle>Workbench</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[340px] animate-pulse rounded-lg bg-white/5" />
-        </CardContent>
-      </Card>
-      <Card className="md:col-span-8">
-        <CardHeader>
-          <CardTitle>Sankey Flow</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[340px] animate-pulse rounded-lg bg-white/5" />
+          <div className="h-[420px] animate-pulse rounded-lg bg-white/5" />
         </CardContent>
       </Card>
       <Card className="md:col-span-12">
         <CardHeader>
-          <CardTitle>Table</CardTitle>
+          <CardTitle>Issuer Intelligence</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[360px] animate-pulse rounded-lg bg-white/5" />
+          <div className="h-[320px] animate-pulse rounded-lg bg-white/5" />
         </CardContent>
       </Card>
     </div>
@@ -105,17 +94,10 @@ function normalizeDatasetIndex(payload: unknown): DatasetIndexItem[] {
     });
 }
 
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
-}
-
 export function ExplorePage() {
   const reduceMotion = useReducedMotion();
 
   const parsed = useAppStore((s) => s.parsed);
-  const fileBuffer = useAppStore((s) => s.fileBuffer);
   const selection = useAppStore((s) => s.selection);
   const filters = useAppStore((s) => s.filters);
   const parseStatus = useAppStore((s) => s.parseStatus);
@@ -134,7 +116,6 @@ export function ExplorePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [datasets, setDatasets] = useState<DatasetIndexItem[]>([]);
   const [selectedDataPath, setSelectedDataPath] = useState<string>("");
-  const [activeFileName, setActiveFileName] = useState<string>("");
   const [activeStats, setActiveStats] = useState<ParsedStats | null>(null);
 
   const {
@@ -144,7 +125,6 @@ export function ExplorePage() {
     filteredInvestors,
     selectedIssuerRows,
     activeRows,
-    topRows,
     investorTypes,
     nationalities,
     domiciles,
@@ -155,32 +135,11 @@ export function ExplorePage() {
     [datasets, selectedDataPath],
   );
 
-  const focusedRow = useMemo(() => {
-    if (!parsed) return null;
-    if (selection.focusedEvidenceRowId) {
-      const byFocus = parsed.rows.find((row) => row.id === selection.focusedEvidenceRowId);
-      if (byFocus) return byFocus;
-    }
-    if (selection.selectedEdgeId) {
-      const byEdge = parsed.rows.find((row) => row.id === selection.selectedEdgeId);
-      if (byEdge) return byEdge;
-    }
-    if (selection.selectedInvestorId) {
-      return parsed.rows.find((row) => getInvestorId(row) === selection.selectedInvestorId) ?? null;
-    }
-    if (selection.selectedIssuerId) {
-      return parsed.rows.find((row) => getIssuerId(row) === selection.selectedIssuerId) ?? null;
-    }
-    return parsed.rows[0] ?? null;
-  }, [parsed, selection.focusedEvidenceRowId, selection.selectedEdgeId, selection.selectedInvestorId, selection.selectedIssuerId]);
-
   const concentration = useMemo(() => {
     const rows = selectedIssuerRows.length > 0 ? selectedIssuerRows : filteredRows;
     const sorted = [...rows].sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0));
     return sorted.slice(0, 5).reduce((sum, row) => sum + (row.percentage ?? 0), 0);
   }, [filteredRows, selectedIssuerRows]);
-
-  const graphRows = filters.graphHop === 2 ? filteredRows : topRows;
 
   const issuerCount = useMemo(
     () => activeStats?.issuerCount ?? parsed?.graph.nodes.filter((node) => node.kind === "issuer").length ?? 0,
@@ -191,27 +150,6 @@ export function ExplorePage() {
     () => activeStats?.investorCount ?? parsed?.graph.nodes.filter((node) => node.kind === "investor").length ?? 0,
     [activeStats?.investorCount, parsed?.graph.nodes],
   );
-
-  const investorBreakdown = useMemo(() => {
-    const map = new Map<string, "L" | "A" | "U">();
-    for (const row of allRows) {
-      const investorId = getInvestorId(row);
-      if (map.has(investorId)) continue;
-      if (row.localForeign === "L") map.set(investorId, "L");
-      else if (row.localForeign === "A") map.set(investorId, "A");
-      else map.set(investorId, "U");
-    }
-
-    let local = 0;
-    let foreign = 0;
-    let unknown = 0;
-    for (const value of map.values()) {
-      if (value === "L") local += 1;
-      else if (value === "A") foreign += 1;
-      else unknown += 1;
-    }
-    return { local, foreign, unknown };
-  }, [allRows]);
 
   const coveragePass = activeStats?.coveragePass ?? true;
 
@@ -327,7 +265,6 @@ export function ExplorePage() {
         }
 
         if (!active) return;
-        setActiveFileName(selectedDataset.fileName);
         setLoadState("ready");
         setParseProgress(100);
       } catch (error) {
@@ -402,31 +339,44 @@ export function ExplorePage() {
   const hasNoFilteredResult = !showSkeleton && loadState === "ready" && filteredRows.length === 0;
 
   return (
-    <main className="min-h-screen bg-nebula px-4 py-5 md:px-6">
+    <PageShell>
       <CommandPalette />
+      <GlobalHeader
+        title="Explore Lab"
+        subtitle="Workbench untuk pipeline search, filter, evidence, dan visual modules yang lebih dalam dari Home."
+        allRows={allRows}
+        currentPage="explore"
+        eyebrow="Flagship Lab"
+        actions={[
+          { label: "Browse Universe", to: "/", variant: "secondary" },
+          { label: "Control Pressure", to: "/control-pressure", variant: "ghost" },
+        ]}
+      />
 
-      <div className="mx-auto max-w-[1700px] pb-4">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-[30px] font-semibold tracking-tight text-foreground md:text-[34px]">Financial Intelligence Design</h1>
-            <p className="mt-1 text-sm text-muted">Search + filter pipeline konsisten untuk semua modul visual dan tabel.</p>
+      <div className="flex flex-col gap-4">
+        <section className="page-section p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <SectionIntro
+                label="Explore Snapshot"
+                description="Search + filter pipeline konsisten untuk semua modul visual dan tabel."
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {coveragePass ? (
+                <Badge variant="coverage">
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Coverage 100%
+                </Badge>
+              ) : (
+                <Badge variant="danger">
+                  <AlertTriangle className="mr-1 h-3.5 w-3.5" /> DATA INCOMPLETE
+                </Badge>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {coveragePass ? (
-              <Badge className="border-emerald-400/30 bg-emerald-400/10 text-emerald-200">
-                <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Coverage 100%
-              </Badge>
-            ) : (
-              <Badge className="border-red-400/30 bg-red-400/10 text-red-200">
-                <AlertTriangle className="mr-1 h-3.5 w-3.5" /> DATA INCOMPLETE
-              </Badge>
-            )}
-            {activeFileName ? <Badge>{activeFileName}</Badge> : null}
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Card>
             <CardContent className="p-4">
               <div className="text-xs uppercase tracking-wide text-muted">Total Emiten</div>
@@ -441,54 +391,20 @@ export function ExplorePage() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-xs uppercase tracking-wide text-muted">Asing</div>
-              <div className="mt-1 text-2xl font-semibold text-gold">{investorBreakdown.foreign.toLocaleString("id-ID")}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-xs uppercase tracking-wide text-muted">Lokal</div>
-              <div className="mt-1 text-2xl font-semibold text-cyan">{investorBreakdown.local.toLocaleString("id-ID")}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-xs uppercase tracking-wide text-muted">Tidak Terklasifikasi</div>
-              <div className="mt-1 text-2xl font-semibold text-foreground">{investorBreakdown.unknown.toLocaleString("id-ID")}</div>
+              <div className="text-xs uppercase tracking-wide text-muted">Rows</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">{filteredRows.length.toLocaleString("id-ID")}</div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_auto]">
+        <div className="mt-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge>Rows {filteredRows.length.toLocaleString("id-ID")}</Badge>
             <Badge>Emiten {filteredIssuers.length.toLocaleString("id-ID")}</Badge>
             <Badge>Investor {filteredInvestors.length.toLocaleString("id-ID")}</Badge>
             <Badge>Top5 concentration {fmtPercent(concentration)}</Badge>
           </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              className="h-10 min-w-[360px] rounded-lg border border-border bg-panel px-3 text-sm text-foreground outline-none"
-              value={selectedDataPath}
-              onChange={(event) => setSelectedDataPath(event.target.value)}
-              disabled={datasets.length === 0 || loadState === "loading-dataset"}
-            >
-              {datasets.map((dataset) => (
-                <option key={dataset.dataPath} value={dataset.dataPath}>
-                  {dataset.isDefault ? "[Default] " : ""}
-                  {dataset.fileName} ({dataset.rowCount.toLocaleString("id-ID")} rows, {formatBytes(dataset.size)})
-                </option>
-              ))}
-            </select>
-
-            <Link to="/debug" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-panel px-4 text-sm text-muted hover:text-foreground">
-              <Bug className="h-4 w-4" />
-              Open Debug
-            </Link>
-          </div>
         </div>
-      </div>
+        </section>
 
       {showSkeleton ? (
         <div className="mx-auto mb-4 max-w-[1700px] rounded-xl border border-border bg-panel/70 p-4">
@@ -548,76 +464,43 @@ export function ExplorePage() {
             </div>
           ) : (
             <>
-              <Card className="md:col-span-4">
-                <CardHeader>
-                  <CardTitle>DNA Strip</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DNAStrip
-                    rows={filteredRows}
-                    selectedIssuerId={selection.selectedIssuerId}
-                    onSelectIssuer={(issuerId) =>
-                      updateSelection({
-                        selectedIssuerId: issuerId,
-                        selectedInvestorId: null,
-                        selectedEdgeId: null,
-                      })
-                    }
-                  />
-                </CardContent>
-              </Card>
-
-              <Card className="md:col-span-4">
-                <CardHeader>
-                  <CardTitle>Polar Prism</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <PolarPrism rows={filteredRows} selectedIssuerId={selection.selectedIssuerId} allRows={allRows} />
-                </CardContent>
-              </Card>
-
-              <Card className="md:col-span-8">
-                <CardHeader>
-                  <CardTitle>Sankey Flow</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <SankeyFlow
-                    rows={graphRows}
-                    selectedIssuerId={selection.selectedIssuerId}
-                    selectedInvestorId={selection.selectedInvestorId}
-                    onSelectInvestor={(investorId) => updateSelection({ selectedInvestorId: investorId })}
-                  />
-                </CardContent>
-              </Card>
+              <div className="md:col-span-12">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Explore Workbench</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="max-w-3xl text-sm leading-7 text-[#665A4F]">
+                      Explore dipakai untuk filter, evidence, dan issuer list. Radar regulasi penuh dipisah ke halaman
+                      tersendiri supaya tidak redundant dengan Control Pressure.
+                    </p>
+                    <Link
+                      to="/control-pressure"
+                      className="inline-flex shrink-0 rounded-full border border-[#1D4C45] bg-[#EDF4F1] px-4 py-2 text-[13px] font-semibold text-[#1D4C45] transition-colors hover:bg-[#DFECE8]"
+                    >
+                      Open Control Pressure
+                    </Link>
+                  </CardContent>
+                </Card>
+              </div>
 
               <Card className="md:col-span-12">
                 <CardHeader>
-                  <CardTitle>Table + Evidence</CardTitle>
+                  <CardTitle>Ownership Table</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue="table">
-                    <TabsList>
-                      <TabsTrigger value="table">Table</TabsTrigger>
-                      <TabsTrigger value="evidence">Evidence Viewer</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="table">
-                      <OwnershipTable
-                        rows={activeRows}
-                        selectedRowId={focusedRow?.id ?? null}
-                        onSelectRow={(row) =>
-                          updateSelection({
-                            selectedIssuerId: getIssuerId(row),
-                            selectedInvestorId: getInvestorId(row),
-                            selectedEdgeId: row.id,
-                            focusedEvidenceRowId: row.id,
-                          })
-                        }
-                      />
-                    </TabsContent>
-                    <TabsContent value="evidence">
-                      <EvidenceViewer fileBuffer={fileBuffer} evidence={focusedRow?.evidence ?? null} />
-                    </TabsContent>
-                  </Tabs>
+                  <OwnershipTable
+                    rows={activeRows}
+                    selectedRowId={selection.selectedEdgeId ?? null}
+                    onSelectRow={(row) =>
+                      updateSelection({
+                        selectedIssuerId: getIssuerId(row),
+                        selectedInvestorId: getInvestorId(row),
+                        selectedEdgeId: row.id,
+                        focusedEvidenceRowId: null,
+                      })
+                    }
+                  />
                 </CardContent>
               </Card>
 
@@ -640,6 +523,8 @@ export function ExplorePage() {
           )}
         </motion.section>
       </div>
-    </main>
+      </div>
+      <EditorialFooter />
+    </PageShell>
   );
 }

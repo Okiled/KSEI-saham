@@ -51,6 +51,15 @@ function summarizeSelectedValues(selected: Set<string>, options: string[]): stri
   return shown.join(", ");
 }
 
+function buttonTone(active: boolean, tone: "teal" | "amber" | "rose" | "violet" | "neutral" = "teal") {
+  if (!active) return "";
+  if (tone === "amber") return "!border-[#996737] !bg-[#996737] !text-[#FFF9F1] shadow-[0_10px_20px_rgba(153,103,55,0.16)]";
+  if (tone === "rose") return "!border-[#7B312C] !bg-[#7B312C] !text-[#FFF9F1] shadow-[0_10px_20px_rgba(123,49,44,0.16)]";
+  if (tone === "violet") return "!border-[#685261] !bg-[#685261] !text-[#FFF9F1] shadow-[0_10px_20px_rgba(104,82,97,0.16)]";
+  if (tone === "neutral") return "!border-[#6F655B] !bg-[#6F655B] !text-[#FFF9F1] shadow-[0_10px_20px_rgba(111,101,91,0.16)]";
+  return "!border-[#1D4C45] !bg-[#1D4C45] !text-[#FFF9F1] shadow-[0_10px_20px_rgba(29,76,69,0.16)]";
+}
+
 export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCounts }: FiltersPanelProps) {
   const [open, setOpen] = useState(true);
   const filters = useAppStore((s) => s.filters);
@@ -66,6 +75,18 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
   );
   const peroranganPresetActive = isSameSetAsArray(filters.investorTypes, individualTypes);
   const institusiPresetActive = isSameSetAsArray(filters.investorTypes, institutionTypes);
+  const statusFiltered = !filters.localEnabled || !filters.foreignEnabled || !filters.unknownEnabled;
+  const activeFilterCount = [
+    filters.minPercentage > 0,
+    filters.includeUnknownPercentage,
+    !filters.localEnabled,
+    !filters.foreignEnabled,
+    !filters.unknownEnabled,
+    filters.investorTypes.size > 0,
+    filters.nationalities.size > 0,
+    filters.domiciles.size > 0,
+    filters.tagFilters.size > 0,
+  ].filter(Boolean).length;
 
   return (
     <Collapsible.Root
@@ -81,6 +102,11 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <span className="font-mono text-foreground">{resultCounts.issuers.toLocaleString("id-ID")}</span> | Investor:{" "}
             <span className="font-mono text-foreground">{resultCounts.investors.toLocaleString("id-ID")}</span>
           </div>
+          {activeFilterCount > 0 ? (
+            <div className="mt-2 inline-flex rounded-full border border-[#C0D6CF] bg-[#EDF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#1D4C45]">
+              {activeFilterCount} filter aktif
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2">
@@ -102,6 +128,13 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <Button
               size="sm"
               variant={filters.localEnabled ? "secondary" : "outline"}
+              className={
+                statusFiltered
+                  ? buttonTone(filters.localEnabled, "teal")
+                  : filters.localEnabled
+                    ? "!border-[#C0D6CF] !bg-[#EDF4F1] !text-[#1D4C45]"
+                    : ""
+              }
               onClick={() => updateFilters({ localEnabled: !filters.localEnabled })}
             >
               Lokal
@@ -109,6 +142,13 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <Button
               size="sm"
               variant={filters.foreignEnabled ? "secondary" : "outline"}
+              className={
+                statusFiltered
+                  ? buttonTone(filters.foreignEnabled, "amber")
+                  : filters.foreignEnabled
+                    ? "!border-[#E7D2B3] !bg-[#F8EEDC] !text-[#996737]"
+                    : ""
+              }
               onClick={() => updateFilters({ foreignEnabled: !filters.foreignEnabled })}
             >
               Asing
@@ -116,6 +156,13 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <Button
               size="sm"
               variant={filters.unknownEnabled ? "secondary" : "outline"}
+              className={
+                statusFiltered
+                  ? buttonTone(filters.unknownEnabled, "neutral")
+                  : filters.unknownEnabled
+                    ? "!border-[#D8CDBF] !bg-[#F7F0E6] !text-[#665A4F]"
+                    : ""
+              }
               onClick={() => updateFilters({ unknownEnabled: !filters.unknownEnabled })}
             >
               Include Unknown
@@ -134,6 +181,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <Button
               size="sm"
               variant={filters.tagFilters.has("KONGLO") ? "secondary" : "outline"}
+              className={buttonTone(filters.tagFilters.has("KONGLO"), "amber")}
               onClick={() => updateFilters({ tagFilters: toggleTagValue(filters.tagFilters, "KONGLO") })}
             >
               KONGLO
@@ -141,6 +189,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <Button
               size="sm"
               variant={filters.tagFilters.has("PEP") ? "secondary" : "outline"}
+              className={buttonTone(filters.tagFilters.has("PEP"), "violet")}
               onClick={() => updateFilters({ tagFilters: toggleTagValue(filters.tagFilters, "PEP") })}
             >
               PEP
@@ -164,6 +213,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
             <Button
               size="sm"
               variant={filters.includeUnknownPercentage ? "secondary" : "outline"}
+              className={buttonTone(filters.includeUnknownPercentage, "neutral")}
               onClick={() => updateFilters({ includeUnknownPercentage: !filters.includeUnknownPercentage })}
             >
               Include Unknown Percentage
@@ -178,6 +228,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
               <Button
                 size="sm"
                 variant={peroranganPresetActive ? "secondary" : "outline"}
+                className={buttonTone(peroranganPresetActive, "teal")}
                 onClick={() => updateFilters({ investorTypes: new Set(individualTypes) })}
                 disabled={individualTypes.length === 0}
               >
@@ -186,6 +237,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
               <Button
                 size="sm"
                 variant={institusiPresetActive ? "secondary" : "outline"}
+                className={buttonTone(institusiPresetActive, "amber")}
                 onClick={() => updateFilters({ investorTypes: new Set(institutionTypes) })}
                 disabled={institutionTypes.length === 0}
               >
@@ -194,6 +246,7 @@ export function FiltersPanel({ investorTypes, nationalities, domiciles, resultCo
               <Button
                 size="sm"
                 variant={filters.investorTypes.size === 0 ? "secondary" : "outline"}
+                className={buttonTone(filters.investorTypes.size === 0, "neutral")}
                 onClick={() => updateFilters({ investorTypes: new Set<string>() })}
               >
                 Semua

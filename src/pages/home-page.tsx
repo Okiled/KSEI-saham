@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, Database, Loader2, Users, RotateCcw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, ArrowRight, Database, Loader2, RotateCcw } from "lucide-react";
 import { GlobalHeader } from "../components/global-header";
+import { EditorialFooter, PageShell, SectionIntro } from "../components/page-shell";
 import { UniverseStockTable, type UniverseStockRow } from "../components/universe-stock-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { TopInvestorRanking } from "../components/top-investor-ranking";
@@ -10,11 +10,24 @@ import { InvestorDemographics } from "../components/investor-demographics";
 import { SyndicateIntersectPanel } from "../components/syndicate-intersect-panel";
 import { useDatasetLoader } from "../hooks/use-dataset-loader";
 import { useOwnershipViews } from "../hooks/use-ownership-views";
+import { useMarketData } from "../hooks/use-market-data";
+import { InvestorLeaderboard } from "../components/investor-leaderboard";
 import { fmtNumber } from "../lib/utils";
 import { getInvestorId } from "../lib/graph";
+import { normalizeTickerList } from "../lib/market-data";
+import { buildUniverseIssuerItems } from "../lib/ownership-analytics";
 import { useAppStore } from "../store/app-store";
+import { MacroIDRStat } from "../components/macro-idr-stat";
+import { TriggerRadarPanel } from "../components/trigger-radar-panel";
 
 type SignalFilter = "all" | "concentrated" | "foreign" | "low-free-float";
+
+function inputTone(active: boolean, tone: "teal" | "amber" | "rose" = "teal") {
+  if (!active) return "";
+  if (tone === "amber") return "border-[#C98A3E] bg-[#FFF8ED] shadow-[0_0_0_3px_rgba(201,138,62,0.12)]";
+  if (tone === "rose") return "border-[#B45C55] bg-[#FFF4F2] shadow-[0_0_0_3px_rgba(180,92,85,0.12)]";
+  return "border-[#1D4C45] bg-[#F9FFFD] shadow-[0_0_0_3px_rgba(29,76,69,0.12)]";
+}
 
 function uniqueInvestorOptions(rows: ReturnType<typeof useOwnershipViews>["allRows"]) {
   const map = new Map<string, { investorId: string; investorName: string }>();
@@ -48,26 +61,8 @@ function sortUniverseRows(rows: UniverseStockRow[], sortBy: ReturnType<typeof us
   return copy;
 }
 
-const pageVariants: import("framer-motion").Variants = {
-  initial: { opacity: 0, y: 16 },
-  animate: { 
-    opacity: 1, 
-    y: 0,
-    transition: { 
-      duration: 0.35,
-      ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
-      staggerChildren: 0.06
-    }
-  },
-  exit: { 
-    opacity: 0, 
-    y: -8,
-    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as [number, number, number, number] }
-  }
-};
-
 export function HomePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
 
   const filters = useAppStore((state) => state.filters);
@@ -79,9 +74,16 @@ export function HomePage() {
   const resetFilters = useAppStore((state) => state.resetFilters);
 
   const { loadState, loadError, selectedDataset } = useDatasetLoader();
-  const { allRows, universeItems } = useOwnershipViews({
+  const { allRows, snapshotDate, snapshotRows, universeItems } = useOwnershipViews({
     snapshotDate: view.snapshotDate,
   });
+
+  const snapshotTickers = useMemo(
+    () => normalizeTickerList(snapshotRows.map((row) => row.shareCode)),
+    [snapshotRows],
+  );
+  const { prices, marketData, updatedAt, loading: marketLoading } = useMarketData(snapshotTickers);
+  const intelligenceUniverseItems = useMemo(() => buildUniverseIssuerItems(snapshotRows, null), [snapshotRows]);
 
   const investorOptions = useMemo(() => uniqueInvestorOptions(allRows), [allRows]);
 
@@ -102,15 +104,23 @@ export function HomePage() {
     if (filters.minPercentage && filters.minPercentage > 0) {
       items = items.filter((row) => row.topHolderPct >= filters.minPercentage);
     }
-    
+
     const q = filters.queryText.trim().toUpperCase();
     if (!q) return items;
     return items.filter(
       (row) => row.shareCode.toUpperCase().includes(q) || row.issuerName.toUpperCase().includes(q),
     );
-  }, [filters.queryText, filters.minFreeFloat, filters.freeFloatEnabled, universeItems, filters.localEnabled, filters.foreignEnabled, filters.unknownEnabled, filters.minPercentage]);
+  }, [
+    filters.queryText,
+    filters.minFreeFloat,
+    filters.freeFloatEnabled,
+    universeItems,
+    filters.localEnabled,
+    filters.foreignEnabled,
+    filters.unknownEnabled,
+    filters.minPercentage,
+  ]);
 
-  // Investor matches for the search query
   const investorMatches = useMemo(() => {
     const q = filters.queryText.trim().toUpperCase();
     if (!q || q.length < 2) return [];
@@ -119,138 +129,237 @@ export function HomePage() {
       .slice(0, 8);
   }, [filters.queryText, investorOptions]);
 
+  const suggestedInvestor = useMemo(() => {
+    if (filteredUniverse.length > 0) return null;
+    return investorMatches[0] ?? null;
+  }, [filteredUniverse.length, investorMatches]);
+
   const displayRows = useMemo(
     () => sortUniverseRows(applySignalFilter(filteredUniverse, signalFilter), view.universeSort),
     [filteredUniverse, signalFilter, view.universeSort],
   );
 
+  const hasActiveRefinement =
+    filters.queryText.trim().length > 0 ||
+    filters.freeFloatEnabled ||
+    filters.minFreeFloat > 0 ||
+    filters.minPercentage > 0 ||
+    !filters.localEnabled ||
+    !filters.foreignEnabled ||
+    !filters.unknownEnabled ||
+    signalFilter !== "all";
 
+  const activeRefinementCount = [
+    filters.queryText.trim().length > 0,
+    filters.freeFloatEnabled,
+    filters.minPercentage > 0,
+    !filters.localEnabled,
+    !filters.foreignEnabled,
+    !filters.unknownEnabled,
+    signalFilter !== "all",
+  ].filter(Boolean).length;
+
+  const signalTone =
+    signalFilter === "foreign"
+      ? inputTone(true, "amber")
+      : signalFilter === "concentrated" || signalFilter === "low-free-float"
+        ? inputTone(true, "rose")
+        : "";
+  const coverageFiltered = !filters.localEnabled || !filters.foreignEnabled || !filters.unknownEnabled;
 
   const ready = loadState === "ready";
 
   return (
-    <motion.main 
-      className="min-h-screen bg-nebula px-8 py-5"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-    >
-      <div className="flex w-full flex-col gap-4">
-        <GlobalHeader
-          title="IDX Ownership Intelligence"
-          subtitle="Scan 900+ emiten, baca struktur pemegang saham, dan temukan koneksi lintas entitas dengan cepat."
-          allRows={allRows}
-          currentPage="browse"
-        />
+    <PageShell>
+      <GlobalHeader
+        title="IDX Ownership Intelligence"
+        subtitle="Research terminal untuk membaca siapa mengontrol apa di IDX, siapa mengunci float, dan ke mana modal besar berputar."
+        allRows={allRows}
+        currentPage="browse"
+        heroVariant="compact"
+        actions={[
+          { label: "Open Control Pressure", to: "/control-pressure", variant: "primary" },
+          { label: "Open Explore Lab", to: "/explore", variant: "secondary" },
+        ]}
+      />
 
-        <section className="rounded-2xl border border-border bg-panel/45 p-4">
-          <div className="mb-3 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-border bg-panel-2/45 p-3">
-              <div className="section-title">Emiten</div>
-              <div className="stat-hero mt-1">
-                {fmtNumber(selectedDataset?.issuerCount ?? universeItems.length)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-panel-2/45 p-3">
-              <div className="section-title">Investor</div>
-              <div className="stat-hero mt-1">
-                {fmtNumber(selectedDataset?.investorCount ?? investorOptions.length)}
-              </div>
-            </div>
-          </div>
+      <section className="page-section p-4 md:p-5">
+        <div className="grid gap-4">
+          <div className="max-w-[1080px]">
+            <h2 className="font-serif text-[2.3rem] font-semibold leading-[0.95] tracking-[-0.05em] text-[#1C1713] md:text-[3.2rem]">
+              Who controls what across IDX.
+            </h2>
+            <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[#665A4F]">
+              Home difokuskan untuk tiga hal: scan cepat universe, baca radar pressure, lalu masuk ke detail.
+            </p>
 
-          <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
-            <div className="flex flex-col gap-1 text-sm">
-              <span className="section-title">Search emiten & investor</span>
-              <input
-                value={filters.queryText}
-                onChange={(event) => updateFilters({ queryText: event.target.value, queryMode: "all" })}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") return;
-                  // If investor matches exist and no emiten matches, open investor peek sheet
-                  if (filteredUniverse.length === 0 && investorMatches.length > 0) {
-                    const next = new URLSearchParams(searchParams);
-                    next.delete("emiten");
-                    next.set("investor", investorMatches[0].investorId);
-                    setSearchParams(next);
-                  }
-                }}
-                placeholder="Cari ticker, nama emiten, atau nama investor..."
-                className="h-10 rounded-xl border border-border bg-panel px-3 text-sm text-foreground outline-none focus:border-teal/45"
-              />
-              {investorMatches.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-muted" />
-                  <span className="text-[11px] text-muted">Investor:</span>
-                  {investorMatches.map((inv) => (
-                    <button
-                      key={inv.investorId}
-                      type="button"
-                      onClick={() => {
-                        const next = new URLSearchParams(searchParams);
-                        next.delete("emiten");
-                        next.set("investor", inv.investorId);
-                        setSearchParams(next);
-                      }}
-                      className="rounded-full border border-teal/20 bg-teal/5 px-2.5 py-0.5 font-mono text-[11px] font-medium text-teal transition-colors hover:bg-teal/15"
-                    >
-                      {inv.investorName.length > 30 ? `${inv.investorName.slice(0, 28)}…` : inv.investorName}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="section-title">Sort</span>
-              <select
-                className="h-10 rounded-xl border border-border bg-panel px-3 text-sm text-foreground outline-none focus:border-teal/45"
-                value={view.universeSort}
-                onChange={(event) =>
-                  updateView({
-                    universeSort: event.target.value as ReturnType<typeof useAppStore.getState>["view"]["universeSort"],
-                  })
-                }
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/control-pressure")}
+                className="inline-flex items-center gap-2 rounded-full border border-[#1D4C45] bg-[#1D4C45] px-4 py-2 text-[13px] font-semibold text-[#FFF9F1] transition-colors hover:bg-[#173C37]"
               >
-                <option value="dominant-pct">Top holder %</option>
-                <option value="holder-count">Holder count</option>
-                <option value="total-shares">Total shares</option>
-                <option value="ticker">Ticker</option>
-              </select>
-            </label>
+                Open Control Pressure
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/explore")}
+                className="inline-flex items-center gap-2 rounded-full border border-[#D8CDBF] bg-[#FFF8F0] px-4 py-2 text-[13px] font-semibold text-[#1C1713] transition-colors hover:bg-[#F0E7DB]"
+              >
+                Open Explore Lab
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_2fr]">
-            <div className="flex flex-col gap-1 text-sm bg-panel-2/30 p-2 rounded-xl border border-border/50">
-              <label className="flex items-center gap-2 mb-1">
-                <input 
-                  type="checkbox" 
-                  className="rounded text-teal focus:ring-teal bg-panel border-border" 
-                  checked={filters.freeFloatEnabled} 
-                  onChange={(e) => updateFilters({ freeFloatEnabled: e.target.checked })}
+          <div className="grid gap-3 md:grid-cols-3 xl:max-w-[880px]">
+            <div className="shell-metric p-4">
+              <div className="shell-metric-label">Emiten</div>
+              <div className="shell-metric-value mt-2">{fmtNumber(selectedDataset?.issuerCount ?? universeItems.length)}</div>
+            </div>
+            <div className="shell-metric p-4">
+              <div className="shell-metric-label">Investor Base</div>
+              <div className="shell-metric-value mt-2">{fmtNumber(selectedDataset?.investorCount ?? investorOptions.length)}</div>
+            </div>
+            <div className="shell-metric p-4">
+              <div className="shell-metric-label">Snapshot</div>
+              <div className="mt-2 font-mono text-lg font-semibold text-[#1D4C45]">{snapshotDate ?? "-"}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="page-section p-4 md:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <SectionIntro
+            label="Refine Universe"
+            description="Kontrol kerja dibuat lebih ringkas: cari cepat, ubah urutan baca, lalu sempitkan scan hanya saat perlu."
+          />
+          <div className="flex items-center gap-2 self-start">
+            {hasActiveRefinement ? (
+              <span className="rounded-full border border-[#C0D6CF] bg-[#EDF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#1D4C45] shadow-[0_8px_18px_rgba(29,76,69,0.08)]">
+                {activeRefinementCount} filter aktif
+              </span>
+            ) : null}
+            {hasActiveRefinement ? (
+              <button
+                type="button"
+                onClick={() => {
+                  resetFilters();
+                  setSignalFilter("all");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-[#7B312C] transition-colors hover:bg-[#F8E9E4]"
+                title="Reset seluruh filter"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_200px_220px]">
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="section-title">Search</span>
+            <input
+              value={filters.queryText}
+              onChange={(event) => updateFilters({ queryText: event.target.value, queryMode: "all" })}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                if (filteredUniverse.length === 0 && investorMatches.length > 0) {
+                  navigate(`/investor/${encodeURIComponent(investorMatches[0].investorId)}`);
+                }
+              }}
+              placeholder="Cari ticker, nama emiten, atau nama investor..."
+              className={`editorial-input px-3 text-sm outline-none ${inputTone(filters.queryText.trim().length > 0)}`}
+            />
+            {suggestedInvestor ? (
+              <p className="pl-[15px] text-xs text-[#665A4F]">
+                Tekan Enter untuk buka investor terdekat:
+                <span className="ml-1 font-medium text-[#1D4C45]">{suggestedInvestor.investorName}</span>
+              </p>
+            ) : (
+              <p className="pl-[15px] text-xs text-[#8B7E72]">Gunakan satu kolom untuk scan emiten sekaligus investor.</p>
+            )}
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="section-title">Sort</span>
+            <select
+              className="editorial-input px-3 text-sm outline-none"
+              value={view.universeSort}
+              onChange={(event) =>
+                updateView({
+                  universeSort: event.target.value as ReturnType<typeof useAppStore.getState>["view"]["universeSort"],
+                })
+              }
+            >
+              <option value="dominant-pct">Top holder %</option>
+              <option value="holder-count">Holder count</option>
+              <option value="total-shares">Total shares</option>
+              <option value="ticker">Ticker</option>
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="section-title">Signal Focus</span>
+            <select
+              className={`editorial-input px-3 text-sm outline-none ${signalTone}`}
+              value={signalFilter}
+              onChange={(event) => setSignalFilter(event.target.value as SignalFilter)}
+            >
+              <option value="all">Balanced scan</option>
+              <option value="concentrated">Konsentrasi tinggi</option>
+              <option value="foreign">Asing dominan</option>
+              <option value="low-free-float">Free float rendah</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 grid gap-4 border-t border-[#E6DCCE] pt-4 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+          <div className={`grid gap-2 rounded-[18px] px-3 py-2 transition-all ${filters.freeFloatEnabled ? "border border-[#E7D2B3] bg-[#FFF7ED] shadow-[0_10px_22px_rgba(153,103,55,0.08)]" : ""}`}>
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="rounded border-[#D8CDBF] bg-[#FFFBF5] text-[#1D4C45] focus:ring-[#1D4C45]"
+                  checked={filters.freeFloatEnabled}
+                  onChange={(event) => updateFilters({ freeFloatEnabled: event.target.checked })}
                 />
                 <span className="section-title">Min freefloat %</span>
               </label>
-              <div className={`flex items-center gap-3 transition-opacity ${filters.freeFloatEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="flex-1"
-                  value={filters.minFreeFloat}
-                  onChange={(event) => updateFilters({ minFreeFloat: Number.parseFloat(event.target.value) || 0 })}
-                />
-                <span className="font-mono text-xs text-muted w-8 text-right">{filters.minFreeFloat.toFixed(0)}%</span>
-              </div>
+              <span className={`w-10 text-right font-mono text-xs ${filters.freeFloatEnabled ? "font-semibold text-[#996737]" : "text-[#665A4F]"}`}>
+                {filters.minFreeFloat.toFixed(0)}%
+              </span>
             </div>
+            <div className={`flex items-center gap-3 transition-opacity ${filters.freeFloatEnabled ? "opacity-100" : "pointer-events-none opacity-40"}`}>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                className="flex-1 accent-[#1D4C45]"
+                value={filters.minFreeFloat}
+                onChange={(event) => updateFilters({ minFreeFloat: Number.parseFloat(event.target.value) || 0 })}
+              />
+            </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-sm bg-panel-2/30 p-2 rounded-xl border border-border/50">
+          <div className={`flex flex-col gap-2 rounded-[18px] px-3 py-2 transition-all ${coverageFiltered ? "border border-[#C0D6CF] bg-[#F5FBF9] shadow-[0_10px_22px_rgba(29,76,69,0.07)]" : ""}`}>
+            <span className="section-title">Coverage</span>
+            <div className="inline-flex w-full flex-wrap rounded-full border border-[#D8CDBF] bg-[#F7F0E6] p-1">
               <button
                 type="button"
                 onClick={() => updateFilters({ localEnabled: !filters.localEnabled })}
                 aria-pressed={filters.localEnabled}
-                className={`rounded-full border px-3 py-1 ${filters.localEnabled ? "border-teal/45 bg-teal/10 text-teal" : "border-border text-muted"}`}
+                className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                  filters.localEnabled
+                    ? coverageFiltered
+                      ? "bg-[#1D4C45] text-[#FFF9F1] shadow-[0_8px_18px_rgba(29,76,69,0.16)]"
+                      : "bg-[#EDF4F1] text-[#1D4C45] shadow-[inset_0_0_0_1px_rgba(192,214,207,1)]"
+                    : "text-[#665A4F] hover:bg-[#FFF8F0]"
+                }`}
               >
                 Lokal
               </button>
@@ -258,7 +367,13 @@ export function HomePage() {
                 type="button"
                 onClick={() => updateFilters({ foreignEnabled: !filters.foreignEnabled })}
                 aria-pressed={filters.foreignEnabled}
-                className={`rounded-full border px-3 py-1 ${filters.foreignEnabled ? "border-gold/45 bg-gold/10 text-gold" : "border-border text-muted"}`}
+                className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                  filters.foreignEnabled
+                    ? coverageFiltered
+                      ? "bg-[#996737] text-[#FFF9F1] shadow-[0_8px_18px_rgba(153,103,55,0.16)]"
+                      : "bg-[#F8EEDC] text-[#996737] shadow-[inset_0_0_0_1px_rgba(231,210,179,1)]"
+                    : "text-[#665A4F] hover:bg-[#FFF8F0]"
+                }`}
               >
                 Asing
               </button>
@@ -266,158 +381,142 @@ export function HomePage() {
                 type="button"
                 onClick={() => updateFilters({ unknownEnabled: !filters.unknownEnabled })}
                 aria-pressed={filters.unknownEnabled}
-                className={`rounded-full border px-3 py-1 ${filters.unknownEnabled ? "border-warning/45 bg-warning/10 text-warning" : "border-border text-muted"}`}
+                className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                  filters.unknownEnabled
+                    ? coverageFiltered
+                      ? "bg-[#6F655B] text-[#FFF9F1] shadow-[0_8px_18px_rgba(111,101,91,0.16)]"
+                      : "bg-[#F7F0E6] text-[#665A4F] shadow-[inset_0_0_0_1px_rgba(216,205,191,1)]"
+                    : "text-[#665A4F] hover:bg-[#FFF8F0]"
+                }`}
               >
                 Unknown
               </button>
-              <button
-                type="button"
-                onClick={() => setSignalFilter("all")}
-                className={`rounded-full border px-3 py-1 ${signalFilter === "all" ? "border-teal/45 bg-teal/10 text-teal" : "border-border text-muted"}`}
-              >
-                Semua
-              </button>
-              <button
-                type="button"
-                onClick={() => setSignalFilter("concentrated")}
-                className={`rounded-full border px-3 py-1 ${signalFilter === "concentrated" ? "border-rose/45 bg-rose/10 text-rose" : "border-border text-muted"}`}
-              >
-                Konsentrasi Tinggi
-              </button>
-              <button
-                type="button"
-                onClick={() => setSignalFilter("foreign")}
-                className={`rounded-full border px-3 py-1 ${signalFilter === "foreign" ? "border-gold/45 bg-gold/10 text-gold" : "border-border text-muted"}`}
-              >
-                Asing Dominan
-              </button>
-              <button
-                type="button"
-                onClick={() => setSignalFilter("low-free-float")}
-                className={`rounded-full border px-3 py-1 ${signalFilter === "low-free-float" ? "border-rose/45 bg-rose/10 text-rose" : "border-border text-muted"}`}
-              >
-                Free Float Rendah
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  resetFilters();
-                  setSignalFilter("all");
-                }}
-                className="flex items-center gap-1.5 rounded-full border border-rose/30 bg-rose/10 px-3 py-1 font-medium text-rose transition-colors hover:bg-rose/20 ml-2"
-                title="Reset seluruh filter"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Reset Filter
-              </button>
             </div>
+            {coverageFiltered ? (
+              <p className="text-[11px] text-[#665A4F]">
+                Status yang dimatikan sedang dikeluarkan dari hasil scan.
+              </p>
+            ) : null}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {!ready ? (
-          <section className="rounded-2xl border border-border bg-panel/45 p-10">
-            {loadState === "error" ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <AlertTriangle className="h-10 w-10 text-rose/60" />
-                <div className="text-sm font-semibold text-rose">{loadError ?? "Gagal memuat dataset"}</div>
-                <p className="max-w-md text-xs text-muted">
-                  Pastikan dataset sudah tergenerate dengan menjalankan <code className="font-mono text-foreground">npm run dev</code>.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-teal/50" />
-                <div className="text-sm text-muted">Menyiapkan dataset...</div>
-              </div>
-            )}
-          </section>
-        ) : displayRows.length === 0 ? (
-          <section className="rounded-2xl border border-border bg-panel/45 p-10">
+      {ready && (
+        <MacroIDRStat
+          rows={snapshotRows}
+          prices={prices}
+          loading={marketLoading}
+          updatedAt={updatedAt}
+        />
+      )}
+
+      {!ready ? (
+        <section className="page-section p-8">
+          {loadState === "error" ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Database className="h-10 w-10 text-muted/40" />
-              <div className="text-sm font-semibold text-muted">Tidak ada emiten untuk filter saat ini</div>
-              <p className="max-w-md text-xs text-muted">
-                Coba reset filter atau ubah parameter pencarian untuk melihat daftar emiten.
+              <AlertTriangle className="h-10 w-10 text-[#991B1B]" />
+              <div className="text-sm font-semibold text-[#991B1B]">{loadError ?? "Gagal memuat dataset"}</div>
+              <p className="max-w-md text-xs text-[#6B6B6B]">
+                Pastikan dataset sudah tergenerate dengan menjalankan <code className="font-mono text-[#1A1A1A]">npm run dev</code>.
               </p>
             </div>
-          </section>
-        ) : (
-          <Tabs defaultValue="browse" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="browse">Browse Universe</TabsTrigger>
-              <TabsTrigger value="intelligence">Market Intelligence</TabsTrigger>
-            </TabsList>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-[#0D9488]" />
+              <div className="text-sm text-[#6B6B6B]">Menyiapkan dataset...</div>
+            </div>
+          )}
+        </section>
+      ) : displayRows.length === 0 ? (
+        <section className="page-section p-8">
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <Database className="h-10 w-10 text-[#9CA3AF]" />
+            <div className="text-sm font-semibold text-[#6B6B6B]">Tidak ada emiten untuk filter saat ini</div>
+            <p className="max-w-md text-xs text-[#6B6B6B]">
+              Coba reset filter atau ubah parameter pencarian untuk melihat daftar emiten.
+            </p>
+          </div>
+        </section>
+      ) : (
+        <Tabs defaultValue="browse" className="space-y-3">
+          <TabsList>
+            <TabsTrigger value="browse">Browse Universe</TabsTrigger>
+            <TabsTrigger value="intelligence">Market Intelligence</TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="browse" className="min-h-[400px]">
-              <section className="space-y-2">
-                <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 mb-4">
-                  <div>
-                    <div className="flex items-center gap-2 section-title mb-1">
-                      <div className="h-3.5 w-1 rounded-sm bg-teal" /> BROWSE UNIVERSE
-                    </div>
-                    <p className="text-sm text-muted">
-                      Scan cepat emiten berdasarkan konsentrasi holder, komposisi lokal/asing, dan estimasi free float.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!filters.localEnabled && <span className="rounded-full bg-border/40 px-2 py-0.5 text-[10px] font-medium text-muted">Tanpa Lokal</span>}
-                    {!filters.foreignEnabled && <span className="rounded-full bg-border/40 px-2 py-0.5 text-[10px] font-medium text-muted">Tanpa Asing</span>}
-                    {filters.freeFloatEnabled && <span className="rounded-full bg-teal/10 px-2 py-0.5 text-[10px] font-medium text-teal border border-teal/20">FF &gt;= {filters.minFreeFloat}%</span>}
-                    {filters.minPercentage > 0 && <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-medium text-gold border border-gold/20">Top &gt;= {filters.minPercentage}%</span>}
-                    <span className="text-xs font-mono font-medium text-foreground tracking-tighter bg-panel-2 px-2 py-1 rounded-md border border-border shadow-sm">
-                      {filteredUniverse.length} Matches
-                    </span>
-                  </div>
+          <TabsContent value="browse" className="min-h-[400px]">
+            <section className="space-y-1.5">
+              <div className="mb-4 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+                <div>
+                  <SectionIntro
+                    label="Browse Universe"
+                    description="Scan cepat emiten berdasarkan konsentrasi holder, komposisi lokal/asing, dan estimasi free float."
+                  />
                 </div>
-
-                <UniverseStockTable 
-                  rows={displayRows}
-                  targetFreeFloat={filters.freeFloatEnabled ? filters.minFreeFloat : undefined}
-                  onSelectIssuer={(issuerId) => {
-                    const match = displayRows.find((item) => item.issuerId === issuerId);
-                    if (!match) return;
-                    setFocusIssuer(issuerId);
-                    updateSelection({
-                      selectedIssuerId: issuerId,
-                      selectedInvestorId: null,
-                      selectedEdgeId: null,
-                      focusedEvidenceRowId: null,
-                    });
-                    const next = new URLSearchParams(searchParams);
-                    next.delete("investor");
-                    next.set("emiten", match.shareCode);
-                    setSearchParams(next);
-                  }}
-                />
-              </section>
-            </TabsContent>
-
-            <TabsContent value="intelligence" className="min-h-[400px]">
-              <section className="space-y-4">
-                <div className="section-title">Market Intelligence</div>
-                <p className="pl-[15px] text-sm text-muted">
-                  Analisis makro dari seluruh pemegang saham di bursa.
-                </p>
-                <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-                  <TopInvestorRanking rows={allRows} />
-                  <InvestorDemographics rows={allRows} />
+                <div className="flex items-center gap-2">
+                  {!filters.localEnabled && <span className="chip-soft px-2 py-0.5 text-[10px] font-medium">Tanpa Lokal</span>}
+                  {!filters.foreignEnabled && <span className="chip-soft px-2 py-0.5 text-[10px] font-medium">Tanpa Asing</span>}
+                  {filters.freeFloatEnabled && <span className="rounded-full border border-[#99F6E4] bg-[#F0FDF9] px-2 py-0.5 text-[10px] font-medium text-[#0D9488]">FF &gt;= {filters.minFreeFloat}%</span>}
+                  {filters.minPercentage > 0 && <span className="rounded-full border border-[#FDE68A] bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-medium text-[#92400E]">Top &gt;= {filters.minPercentage}%</span>}
+                  <span className="rounded-md border border-[#E8E4DC] bg-[#FCFBF8] px-2 py-1 text-xs font-mono font-medium text-[#1A1A1A] shadow-sm">
+                    {filteredUniverse.length} Matches
+                  </span>
                 </div>
-              </section>
-
-              <div className="mt-8 border-t border-border/50 pt-8">
-                <SyndicateIntersectPanel allRows={allRows} />
               </div>
-            </TabsContent>
-          </Tabs>
-        )}
 
-        {/* ── Footer ── */}
-        <footer className="mt-6 flex justify-center pb-4 text-xs font-mono text-muted/40">
-          <a href="https://x.com/Conaax" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-teal">
-            Made by CONA
-          </a>
-        </footer>
-      </div>
-    </motion.main>
+              <UniverseStockTable
+                rows={displayRows}
+                targetFreeFloat={filters.freeFloatEnabled ? filters.minFreeFloat : undefined}
+                prices={prices}
+                onSelectIssuer={(issuerId) => {
+                  const match = universeItems.find((item) => item.issuerId === issuerId);
+                  if (!match) return;
+                  setFocusIssuer(issuerId);
+                  updateSelection({
+                    selectedIssuerId: issuerId,
+                    selectedInvestorId: null,
+                    selectedEdgeId: null,
+                    focusedEvidenceRowId: null,
+                  });
+                  navigate(`/emiten/${encodeURIComponent(match.shareCode)}`);
+                }}
+              />
+            </section>
+          </TabsContent>
+
+          <TabsContent value="intelligence" className="min-h-[400px]">
+            <section className="space-y-3">
+              <SectionIntro label="Market Intelligence" description="Analisis makro dari seluruh pemegang saham di bursa." />
+              <TriggerRadarPanel
+                allRows={snapshotRows}
+                snapshotDate={snapshotDate}
+                universeItems={intelligenceUniverseItems}
+                marketData={marketData}
+                updatedAt={updatedAt}
+                maxItemsPerSection={3}
+                actionHref="/control-pressure"
+                actionLabel="Open Full Radar"
+              />
+              <div className="grid gap-4 xl:grid-cols-[1fr_1.3fr_1.3fr]">
+                <InvestorDemographics rows={allRows} />
+                <TopInvestorRanking rows={allRows} />
+                <InvestorLeaderboard
+                  rows={snapshotRows}
+                  prices={prices}
+                  updatedAt={updatedAt}
+                  onSelectInvestor={(investorId) => navigate(`/investor/${encodeURIComponent(investorId)}`)}
+                />
+              </div>
+            </section>
+
+            <div className="mt-8 border-t border-[#E8E4DC] pt-8">
+              <SyndicateIntersectPanel allRows={allRows} />
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      <EditorialFooter />
+    </PageShell>
   );
 }

@@ -3,7 +3,6 @@ import type { CompositionBucket } from "../types/ownership";
 
 type OwnershipCompositionPanelProps = {
   composition: CompositionBucket[];
-  totalKnownPct: number;
   freeFloatEstimatePct: number;
 };
 
@@ -21,7 +20,6 @@ function bucketColor(key: CompositionBucket["key"]): { bg: string; label: string
 
 export function OwnershipCompositionPanel({
   composition,
-  totalKnownPct,
   freeFloatEstimatePct,
 }: OwnershipCompositionPanelProps) {
   const displayBuckets = composition.filter((bucket) => bucket.percentage > 0.01).slice(0, 7);
@@ -59,11 +57,7 @@ export function OwnershipCompositionPanel({
       </div>
 
       {/* ── Key Metrics ── */}
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl border border-border bg-panel-2/40 p-3">
-          <div className="section-title">Known Ownership</div>
-          <div className="stat-hero mt-2">{fmtPercent(totalKnownPct)}</div>
-        </div>
+      <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-panel-2/40 p-3">
           <div className="section-title">Free Float (Estimasi)</div>
           <div className={`stat-hero mt-2 ${ffCtx.color}`}>{fmtPercent(freeFloatEstimatePct)}</div>

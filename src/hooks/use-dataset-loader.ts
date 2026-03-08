@@ -165,7 +165,7 @@ export function useDatasetLoader() {
     setSelectedDataPathState(next);
   }, []);
 
-  const hydrateInvestorTags = useCallback(
+  const hydrateInvestorMetadata = useCallback(
     async (rows: ParsedOwnership["rows"]) => {
       try {
         const response = await fetch("/labels/investors.json", { cache: "no-cache" });
@@ -268,7 +268,7 @@ export function useDatasetLoader() {
       setParsePageInfo(entry.parsed.report.pageCount, entry.parsed.report.pageCount);
       setParseProgress(100);
       setParseStatus("ready");
-      void hydrateInvestorTags(entry.parsed.rows);
+      void hydrateInvestorMetadata(entry.parsed.rows);
 
       const cachedPdf = pdfBufferCache.get(selectedDataset.dataPath);
       if (cachedPdf && cachedPdf.mtimeMs === entry.mtimeMs) {
@@ -348,7 +348,7 @@ export function useDatasetLoader() {
         };
         datasetCache.set(selectedDataset.dataPath, cacheEntry);
         setParsed(hydrated);
-        void hydrateInvestorTags(hydrated.rows);
+        void hydrateInvestorMetadata(hydrated.rows);
         setActiveStats(stats);
         cachedActiveStats = stats;
         setActiveFileName(selectedDataset.fileName);
@@ -395,7 +395,7 @@ export function useDatasetLoader() {
   }, [
     activeFileName,
     activeStats,
-    hydrateInvestorTags,
+    hydrateInvestorMetadata,
     parsed,
     selectedDataset,
     setFile,

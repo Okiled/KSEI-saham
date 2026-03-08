@@ -141,7 +141,10 @@ export function latestSnapshotDate(rows: OwnershipRow[]): string | null {
   return buckets.length === 0 ? null : buckets[buckets.length - 1].key;
 }
 
-export function buildUniverseIssuerItems(rows: OwnershipRow[], snapshotDate: string | null): UniverseIssuerItem[] {
+export function buildUniverseIssuerItems(
+  rows: OwnershipRow[], 
+  snapshotDate: string | null
+): UniverseIssuerItem[] {
   const scopedRows = rowsAtSnapshot(rows, snapshotDate);
   const map = new Map<
     string,
@@ -198,6 +201,7 @@ export function buildUniverseIssuerItems(rows: OwnershipRow[], snapshotDate: str
       if (item.foreignPct >= 35) signals.push("Asing Dominan");
       if (freeFloatPct <= 20) signals.push("Free Float Rendah");
       if (item.unknownPct >= 8) signals.push("Unknown Tinggi");
+      
       return {
         issuerId: item.issuerId,
         shareCode: item.shareCode,

@@ -1,8 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
 import { AlertTriangle, FileBarChart, Loader2, Lock, ShieldAlert, Layers, Sparkles } from "lucide-react";
 import { AnimatedNumber } from "../components/animated-number";
+import { EditorialFooter, PageShell } from "../components/page-shell";
+import { GlobalHeader } from "../components/global-header";
 import { OwnershipSankeyL2R } from "../components/ownership-sankey-l2r";
 import { OwnershipTimelinePanel } from "../components/ownership-timeline-panel";
 import { CoInvestorHeatmapPanel } from "../components/co-investor-heatmap-panel";
@@ -11,8 +13,13 @@ import { OwnershipCompositionPanel } from "../components/ownership-composition-p
 import { OwnershipHolderTable } from "../components/ownership-holder-table";
 import { HhiGauge } from "../components/hhi-gauge";
 import { useDatasetLoader } from "../hooks/use-dataset-loader";
+import { useMarketData } from "../hooks/use-market-data";
 import { useOwnershipViews } from "../hooks/use-ownership-views";
+import { detectCoordinatedBloc } from "../lib/domicile-intelligence";
+import { formatIDR } from "../lib/format";
 import { getIssuerId } from "../lib/graph";
+import { calcRedemptionRisk } from "../lib/redemption-risk";
+import { detectShadowAccumulation } from "../lib/trigger-engine";
 import { fmtNumber, fmtPercent, freeFloatContext } from "../lib/utils";
 import type { GhostAccumulationResponse, GhostAccumulationRequest } from "../workers/ghost-accumulation.worker";
 import type { OwnershipRow } from "../types/ownership";
@@ -105,6 +112,11 @@ function calculateRBI(allRows: OwnershipRow[], issuerId: string, snapshotDates: 
   return { isBagholding: false, instDrop: Math.abs(instDiff), retailGain: retDiff };
 }
 
+function formatPatternCategory(value: string | undefined): string {
+  if (!value) return "-";
+  return value.replace(/_/g, " ");
+}
+
 const sectionVariants: Variants = {
   hidden: { opacity: 0, y: 24 },
   visible: (i: number) => ({
@@ -118,35 +130,44 @@ const sectionVariants: Variants = {
   })
 };
 
-const sheetVariants: Variants = {
-  hidden: { x: "100%", opacity: 0 },
-  visible: { 
-    x: 0, 
-    opacity: 1, 
-    transition: { type: "spring", damping: 26, stiffness: 220, staggerChildren: 0.06 } 
+const pageVariants: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.35,
+      ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+      staggerChildren: 0.06,
+    },
   },
-  exit: { 
-    x: "100%", 
-    opacity: 0, 
-    transition: { duration: 0.25, ease: "easeInOut" } 
-  }
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as [number, number, number, number] },
+  },
 };
 
 export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const shareCodeParam = shareCode?.trim().toUpperCase() ?? "";
   const selectedIssuerId = shareCodeParam ? `issuer:${shareCodeParam}` : null;
-
-  const handleClose = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("emiten");
-    setSearchParams(next);
-  };
 
   const { loadState, loadError } = useDatasetLoader();
   const views = useOwnershipViews({ selectedIssuerId, topOverlapHolders: 12 });
 
   const issuer = views.issuerOwnership;
+  const { prices, marketData } = useMarketData(issuer ? [issuer.shareCode] : shareCodeParam ? [shareCodeParam] : []);
+  const navigateToInvestor = (investorId: string) => {
+    navigate(`/investor/${encodeURIComponent(investorId)}`);
+  };
+  const navigateToIssuer = (nextShareCode: string) => {
+    navigate(`/emiten/${encodeURIComponent(nextShareCode.trim().toUpperCase())}`);
+  };
+  const navigateToIssuerId = (issuerId: string) => {
+    const row = views.allRows.find((item) => getIssuerId(item) === issuerId);
+    if (row) navigateToIssuer(row.shareCode);
+  };
 
   const [ghostData, setGhostData] = useState<GhostAccumulationResponse | null>(null);
 
@@ -175,6 +196,48 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
     return generateIntelBrief(issuer.issuerName, issuer.holders as any, issuer.freeFloatEstimatePct, hhi, ghostData, rbi);
   }, [issuer, hhi, ghostData, rbi]);
 
+  const fundPressure = useMemo(
+    () => (issuer ? calcRedemptionRisk(issuer.holders, marketData[issuer.shareCode] ?? null) : null),
+    [issuer, marketData],
+  );
+
+  const patternAlerts = useMemo(() => {
+    if (!issuer) return [];
+
+    const shadowAlerts = detectShadowAccumulation(views.snapshotRows, issuer.snapshotDate)
+      .filter((alert) => alert.issuerId === issuer.issuerId)
+      .map((alert) => ({
+        id: alert.id,
+        label: "SHADOW ACCUMULATION",
+        tone: "shadow" as const,
+        message: alert.message,
+        combinedPct: alert.details.combinedPct ?? 0,
+        entityCount: alert.details.entityCount ?? 0,
+        domicileCategory: alert.details.domicileCategory,
+        investors: alert.details.investors ?? [],
+        disclaimerKey: alert.details.disclaimerKey,
+      }));
+
+    const domicileBlocAlerts = detectCoordinatedBloc(views.snapshotRows, issuer.snapshotDate)
+      .filter((alert) => alert.issuerId === issuer.issuerId)
+      .map((alert) => ({
+        id: alert.id,
+        label: "POSSIBLE COORDINATED PATTERN",
+        tone: "pattern" as const,
+        message: "Possible pattern detected from disclosure clustering by raw domicile field.",
+        combinedPct: alert.combinedPct,
+        entityCount: alert.entityCount,
+        domicileCategory: alert.domicileCategory,
+        investors: alert.investors,
+        disclaimerKey: alert.disclaimerKey,
+      }));
+
+    return [...shadowAlerts, ...domicileBlocAlerts].sort((left, right) => {
+      if (right.combinedPct !== left.combinedPct) return right.combinedPct - left.combinedPct;
+      return right.entityCount - left.entityCount;
+    });
+  }, [issuer, views.snapshotRows]);
+
   useEffect(() => {
     if (!issuer || !views.timelineView) return;
     const worker = new Worker(new URL("../workers/ghost-accumulation.worker.ts", import.meta.url), { type: "module" });
@@ -193,11 +256,21 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
 
   if (loadState !== "ready") {
     return (
-      <>
-        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-        <main className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-4xl overflow-y-auto glass-deep px-8 py-8 border-l border-white/10">
-          <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
-          <div className="rounded-2xl border border-border bg-panel/45 p-8">
+      <PageShell>
+        <GlobalHeader
+          title={shareCodeParam ? `${shareCodeParam} | Detail Emiten` : "Detail Emiten"}
+          subtitle="Ownership intelligence emiten dengan struktur, overlap, dan holder table penuh."
+          allRows={views.allRows}
+          currentPage="emiten"
+          currentId={shareCodeParam}
+          activeIssuer={shareCodeParam ? { shareCode: shareCodeParam } : null}
+          actions={[
+            { label: "Browse Universe", to: "/", variant: "secondary" },
+            { label: "Open Workstation", to: `/workstation/emiten/${encodeURIComponent(shareCodeParam)}`, variant: "ghost" },
+          ]}
+          onNavigate={navigate}
+        />
+        <div className="page-section p-6">
             {loadState === "error" ? (
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <AlertTriangle className="h-10 w-10 text-rose/60" />
@@ -209,36 +282,39 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
                 <div className="text-sm text-muted">Menyiapkan detail emiten...</div>
               </div>
             )}
-          </div>
-        </main>
-      </>
+        </div>
+        <EditorialFooter />
+      </PageShell>
     );
   }
 
   if (!selectedIssuerId || !issuer) {
     return (
-      <>
-        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-        <main className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-4xl overflow-y-auto glass-deep px-8 py-8 border-l border-white/10">
-          <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
-          <div className="rounded-2xl border border-border bg-panel/45 p-8">
+      <PageShell>
+        <GlobalHeader
+          title={shareCodeParam ? `${shareCodeParam} | Detail Emiten` : "Detail Emiten"}
+          subtitle="Ownership intelligence emiten dengan struktur, overlap, dan holder table penuh."
+          allRows={views.allRows}
+          currentPage="emiten"
+          currentId={shareCodeParam}
+          activeIssuer={shareCodeParam ? { shareCode: shareCodeParam } : null}
+          actions={[{ label: "Browse Universe", to: "/", variant: "secondary" }]}
+          onNavigate={navigate}
+        />
+        <div className="page-section p-6">
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <FileBarChart className="h-12 w-12 text-muted/40" />
               <div className="text-lg font-semibold text-foreground">Emiten tidak ditemukan</div>
               <p className="text-sm text-muted">
                 Ticker <span className="font-mono text-teal">{shareCodeParam || "-"}</span> belum ada di dataset aktif.
               </p>
-              <button
-                type="button"
-                onClick={handleClose}
-                className="mt-2 inline-flex rounded-full border border-teal/30 bg-teal/5 px-4 py-1.5 text-sm text-teal hover:bg-teal/10"
-              >
-                ← Tutup Panel
+              <button type="button" onClick={() => navigate("/")} className="mt-2 inline-flex rounded-full border border-[#0D9488] bg-[#F0FDF9] px-4 py-1.5 text-sm text-[#0D9488] hover:bg-[#D7F3EE]">
+                Kembali ke Home
               </button>
             </div>
-          </div>
-        </main>
-      </>
+        </div>
+        <EditorialFooter />
+      </PageShell>
     );
   }
 
@@ -253,26 +329,31 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
     topHolder.localForeign === "L";
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-      <motion.main 
-        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-5xl overflow-y-auto glass-deep px-6 py-6 border-l border-white/10"
-        variants={sheetVariants}
+    <PageShell>
+      <GlobalHeader
+        title={`${issuer.shareCode} | ${issuer.issuerName}`}
+        subtitle="Ownership intelligence emiten: struktur kendali, overlap investor, timeline, dan holder table penuh."
+        allRows={views.allRows}
+        currentPage="emiten"
+        currentId={issuer.shareCode}
+        activeIssuer={{ shareCode: issuer.shareCode }}
+        metadata={`Data per ${issuer.snapshotDate ?? "-"}`}
+        actions={[
+          { label: "Browse Universe", to: "/", variant: "secondary" },
+          { label: "Open Workstation", to: `/workstation/emiten/${encodeURIComponent(issuer.shareCode)}`, variant: "ghost" },
+        ]}
+        onNavigate={navigate}
+      />
+      <motion.div
+        className="flex w-full flex-col gap-4"
+        variants={pageVariants}
         initial="hidden"
         animate="visible"
         exit="exit"
       >
-        <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
-        <div className="flex w-full flex-col gap-6 pt-4">
-          <header className="pr-12">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              {issuer.shareCode} <span className="text-muted font-normal">| {issuer.issuerName}</span>
-            </h1>
-            <p className="mt-1 text-sm text-muted">Data per {issuer.snapshotDate ?? "—"} — ownership intelligence emiten</p>
-          </header>
 
           {/* ── Auto Intel Brief ── */}
-        <div className="mb-6 rounded-xl border border-teal/30 bg-teal/5 p-4 shadow-sm relative overflow-hidden">
+        <div className="mb-4 rounded-xl border border-teal/30 bg-teal/5 p-4 shadow-sm relative overflow-hidden">
           <div className="absolute -right-4 -top-4 opacity-10">
             <Sparkles className="h-24 w-24 text-teal" />
           </div>
@@ -359,10 +440,7 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
               shares: holder.shares,
             }))}
             onSelectInvestor={(investorKey) => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("emiten");
-              next.set("investor", investorKey);
-              setSearchParams(next);
+              navigateToInvestor(investorKey);
             }}
           />
         </motion.section>
@@ -392,10 +470,7 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const next = new URLSearchParams(searchParams);
-                      next.delete("emiten");
-                      next.set("investor", card.holder.investorId);
-                      setSearchParams(next);
+                      navigateToInvestor(card.holder.investorId);
                     }}
                     className="text-left"
                   >
@@ -411,10 +486,7 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
                           key={`${card.holder.investorId}:${position.issuerId}`}
                           type="button"
                           onClick={() => {
-                            const next = new URLSearchParams(searchParams);
-                            next.delete("investor");
-                            next.set("emiten", position.shareCode);
-                            setSearchParams(next);
+                            navigateToIssuer(position.shareCode);
                           }}
                           className="rounded-full border border-teal/20 bg-teal/5 px-2.5 py-0.5 font-mono text-[11px] font-medium text-teal transition-colors hover:bg-teal/15"
                         >
@@ -461,18 +533,10 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
           <CoInvestorHeatmapPanel
             overlap={views.overlapView}
             onSelectInvestor={(investorKey) => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("emiten");
-              next.set("investor", investorKey);
-              setSearchParams(next);
+              navigateToInvestor(investorKey);
             }}
             onSelectIssuer={(nextIssuerId) => {
-              const row = views.allRows.find((item) => getIssuerId(item) === nextIssuerId);
-              if (!row) return;
-              const next = new URLSearchParams(searchParams);
-              next.delete("investor");
-              next.set("emiten", row.shareCode);
-              setSearchParams(next);
+              navigateToIssuerId(nextIssuerId);
             }}
           />
         </motion.section>
@@ -492,15 +556,153 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
           </p>
           <OwnershipCompositionPanel
             composition={issuer.composition}
-            totalKnownPct={issuer.totalKnownPercentage}
             freeFloatEstimatePct={issuer.freeFloatEstimatePct}
           />
         </motion.section>
 
         {/* ── 6) Full Holder Table ── */}
+        {fundPressure ? (
+          <motion.section
+            className="rounded-2xl border border-border bg-panel/45 p-4"
+            custom={6}
+            variants={sectionVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+          >
+            <div className="section-title mb-1">Reksa dana pressure</div>
+            <p className="mb-3 pl-[15px] text-sm text-muted">
+              Proxy tekanan jual dari posisi reksa dana disclosed 1%+ pada snapshot aktif. Skenario dasar memakai haircut 10%.
+            </p>
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-border bg-panel-2/45 p-3">
+                <div className="section-title mb-1">MF disclosed %</div>
+                <div className="font-mono text-lg font-semibold text-foreground">{fmtPercent(fundPressure.mutualFundPct)}</div>
+              </div>
+              <div className="rounded-xl border border-border bg-panel-2/45 p-3">
+                <div className="section-title mb-1">MF holders</div>
+                <div className="font-mono text-lg font-semibold text-foreground">
+                  {fundPressure.mutualFundCount.toLocaleString("id-ID")}
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-panel-2/45 p-3">
+                <div className="section-title mb-1">MF value (IDR)</div>
+                <div className="font-mono text-lg font-semibold text-[#855A30]">
+                  {fundPressure.mutualFundValueIDR !== null ? formatIDR(fundPressure.mutualFundValueIDR) : "-"}
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-panel-2/45 p-3">
+                <div className="section-title mb-1">10% redemption</div>
+                <div className="font-mono text-lg font-semibold text-[#855A30]">
+                  {fundPressure.redemption10pctIDR !== null ? formatIDR(fundPressure.redemption10pctIDR) : "-"}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {fundPressure.concentrationRisk ? (
+                <span className="rounded-full border border-[#FECACA] bg-[#FEE2E2] px-3 py-1 text-xs font-semibold text-[#991B1B]">
+                  CONCENTRATION RISK
+                </span>
+              ) : null}
+              {fundPressure.herdingRisk ? (
+                <span className="rounded-full border border-[#FDE68A] bg-[#FEF3C7] px-3 py-1 text-xs font-semibold text-[#92400E]">
+                  HERDING RISK
+                </span>
+              ) : null}
+              {fundPressure.topMutualFundName ? (
+                <span className="rounded-full border border-border bg-panel-2/45 px-3 py-1 text-xs text-muted">
+                  Top mutual fund: {fundPressure.topMutualFundName} ({fmtPercent(fundPressure.topMutualFundPct)})
+                </span>
+              ) : null}
+            </div>
+          </motion.section>
+        ) : null}
+
+        {patternAlerts.length > 0 ? (
+          <motion.section
+            className="rounded-2xl border border-border bg-panel/45 p-4"
+            custom={7}
+            variants={sectionVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+          >
+            <div className="section-title mb-1">Pattern intelligence</div>
+            <p className="mb-3 pl-[15px] text-sm text-muted">
+              Pattern ketat dari clustering disclosure snapshot aktif. Ini context tambahan, bukan bukti koordinasi.
+            </p>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {patternAlerts.map((alert) => (
+                <div key={alert.id} className="rounded-xl border border-border bg-panel-2/45 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                        alert.tone === "shadow"
+                          ? "border-[#E7D2B3] bg-[#F8EEDC] text-[#996737]"
+                          : "border-[#D6C6CF] bg-[#F3ECF1] text-[#685261]"
+                      }`}
+                    >
+                      {alert.label}
+                    </span>
+                    <div className="text-right text-[12px] text-muted">
+                      <div className="font-mono font-semibold text-foreground">{fmtPercent(alert.combinedPct)}</div>
+                      <div>{alert.entityCount.toLocaleString("id-ID")} entitas</div>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 text-sm text-muted">{alert.message}</p>
+
+                  {alert.domicileCategory ? (
+                    <div className="mt-2 text-[12px] text-muted">
+                      Kategori domisili:{" "}
+                      <span className="font-semibold text-foreground">
+                        {formatPatternCategory(alert.domicileCategory)}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 space-y-2">
+                    {alert.investors.slice(0, 5).map((investor) => (
+                      <div
+                        key={investor.id}
+                        className="flex items-start justify-between gap-3 rounded-lg border border-border/80 bg-panel/30 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigateToInvestor(investor.id);
+                            }}
+                            className="truncate text-left text-sm font-semibold text-foreground hover:text-teal"
+                          >
+                            {investor.name}
+                          </button>
+                          {investor.domicile ? (
+                            <div className="mt-0.5 text-[12px] text-muted">{investor.domicile}</div>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0 font-mono text-sm font-semibold text-foreground">
+                          {fmtPercent(investor.percentage)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {patternAlerts.some((alert) => alert.disclaimerKey === "coordinated-bloc") ? (
+              <div className="mt-3 rounded-lg border border-[#D6C6CF] bg-[#F3ECF1] px-3 py-2 text-xs text-[#685261]">
+                Kesamaan domisili bukan bukti koordinasi. Lakukan due diligence independen.
+              </div>
+            ) : null}
+          </motion.section>
+        ) : null}
+
         <motion.section 
           className="rounded-2xl border border-border bg-panel/45 p-4"
-          custom={6}
+          custom={8}
           variants={sectionVariants}
           initial="hidden"
           whileInView="visible"
@@ -512,11 +714,9 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
           </p>
           <OwnershipHolderTable
             holders={issuer.holders}
+            prices={prices}
             onSelectInvestor={(investorId: string) => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("emiten");
-              next.set("investor", investorId);
-              setSearchParams(next);
+              navigateToInvestor(investorId);
             }}
           />
         </motion.section>
@@ -524,14 +724,8 @@ export function EmitenDetailPage({ shareCode }: { shareCode: string }) {
         {/* ── Similar Issuers (Emiten Mirip) ── */}
         <SimilarIssuersPanel currentIssuerId={issuer.issuerId} allIssuers={views.universeItems} />
 
-        {/* ── Footer ── */}
-        <footer className="mt-6 flex justify-center pb-4 text-xs font-mono text-muted/40">
-          <a href="https://x.com/Conaax" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-teal">
-            Made by CONA
-          </a>
-        </footer>
-      </div>
-    </motion.main>
-    </>
+      </motion.div>
+      <EditorialFooter />
+    </PageShell>
   );
 }

@@ -3,8 +3,10 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { CommandPalette } from "../components/command-palette";
+import { GlobalHeader } from "../components/global-header";
 import { IssuerAccordion } from "../components/issuer-accordion";
 import { OwnershipTable } from "../components/ownership-table";
+import { EditorialFooter, PageShell } from "../components/page-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
@@ -374,8 +376,19 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
   };
 
   return (
-    <main className="min-h-screen bg-nebula py-4">
+    <PageShell>
       <CommandPalette />
+      <GlobalHeader
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        allRows={allRows}
+        currentPage="workstation"
+        metadata={mode === "issuer" ? "Secondary workstation for issuer deep-dive" : "Secondary workstation for investor deep-dive"}
+        actions={[
+          { label: "Browse Universe", to: "/", variant: "secondary" },
+          { label: "Explore Lab", to: "/explore", variant: "ghost" },
+        ]}
+      />
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border/70 bg-panel/75 px-4 py-4 backdrop-blur transition-[border-color,box-shadow,background-color] duration-300 hover:border-border-strong/75 hover:shadow-panel">
         <div>
@@ -621,6 +634,7 @@ export function DetailDashboardPage({ mode }: DetailDashboardPageProps) {
           </>
         )}
       </motion.section>
-    </main>
+      <EditorialFooter />
+    </PageShell>
   );
 }

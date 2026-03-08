@@ -57,7 +57,7 @@ export function FrequentCoinvestorsPanel({ currentInvestorId, allRows }: Frequen
   if (coinvestors.length === 0) return null;
 
   return (
-    <div className="mt-8 rounded-2xl border border-border bg-panel/35 p-6 shadow-sm">
+    <div className="mt-8 rounded-2xl border border-[#E8E4DC] bg-white p-6 shadow-[0_12px_32px_rgba(87,73,54,0.06)]">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Network className="h-5 w-5 text-violet" />
@@ -71,11 +71,11 @@ export function FrequentCoinvestorsPanel({ currentInvestorId, allRows }: Frequen
           <Link
             key={match.id}
             to={`/investor/${encodeURIComponent(match.id)}`}
-            className="group block rounded-xl border border-border/50 bg-white/5 p-4 transition-all hover:border-violet/30 hover:bg-violet/5"
+            className="group block rounded-xl border border-[#E8E4DC] bg-[#FCFBF8] p-4 transition-all hover:border-[#DDD6FE] hover:bg-[#F5F3FF]"
           >
             <div className="flex items-center justify-between mb-2">
               <Users className="h-4 w-4 text-muted group-hover:text-violet transition-colors" />
-              <div className="rounded-full bg-border/50 px-2 py-0.5 text-[10px] font-mono font-medium text-muted">
+              <div className="rounded-full border border-[#E8E4DC] bg-white px-2 py-0.5 text-[10px] font-mono font-medium text-[#6B6B6B]">
                 {match.count} Irisan
               </div>
             </div>
@@ -89,12 +89,12 @@ export function FrequentCoinvestorsPanel({ currentInvestorId, allRows }: Frequen
             
             <div className="mt-3 flex flex-wrap gap-1">
               {match.overlapIssuers.slice(0, 4).map((ticker) => (
-                <span key={ticker} className="rounded border border-border/30 bg-black/20 px-1.5 py-0.5 text-[9px] font-mono text-muted/80">
+                <span key={ticker} className="rounded border border-[#E8E4DC] bg-white px-1.5 py-0.5 text-[9px] font-mono text-[#6B6B6B]">
                   {ticker}
                 </span>
               ))}
               {match.overlapIssuers.length > 4 && (
-                <span className="rounded border border-border/30 bg-black/20 px-1.5 py-0.5 text-[9px] font-mono text-muted/80">
+                <span className="rounded border border-[#E8E4DC] bg-white px-1.5 py-0.5 text-[9px] font-mono text-[#6B6B6B]">
                   +{match.overlapIssuers.length - 4}
                 </span>
               )}

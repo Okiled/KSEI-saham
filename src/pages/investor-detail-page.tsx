@@ -1,17 +1,24 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
-import { AlertTriangle, Loader2, Users, Target, Globe, Building2, BarChart3 } from "lucide-react";
+import { AlertTriangle, Loader2, Users } from "lucide-react";
 import { AnimatedNumber } from "../components/animated-number";
+import { EditorialFooter, PageShell } from "../components/page-shell";
 import { InvestorPortfolioTable } from "../components/investor-portfolio-table";
 import { InvestorSankey } from "../components/investor-sankey";
+import { GlobalHeader } from "../components/global-header";
 import { OwnershipTimelinePanel } from "../components/ownership-timeline-panel";
 import { CoInvestorHeatmapPanel } from "../components/co-investor-heatmap-panel";
 import { FrequentCoinvestorsPanel } from "../components/frequent-coinvestors-panel";
 import { HhiGauge } from "../components/hhi-gauge";
 import { useDatasetLoader } from "../hooks/use-dataset-loader";
+import { useMarketData } from "../hooks/use-market-data";
 import { useOwnershipViews } from "../hooks/use-ownership-views";
 import { getInvestorId, getIssuerId } from "../lib/graph";
+import { formatIDR } from "../lib/format";
+import { getPositionValueIDR } from "../lib/market-data";
+import { normalizeTickerList } from "../lib/market-data";
+import { buildInvestorStyleProfile, type InvestorStyle } from "../lib/style-profiling";
 import { fmtNumber, fmtPercent, formatInvestorType } from "../lib/utils";
 import { investorTypeBadgeColor } from "../theme/tokens";
 import { buildInvestorCoInvestorOverlap } from "../lib/ownership-analytics";
@@ -45,32 +52,16 @@ function InvestorHeatmapSection({
 }
 
 /* ── IDX Expert: Gaya Investasi Inference ── */
-function gayaInvestasiInference(identity: {
-  holdingsCount: number;
-  topPositionPct: number;
-  localForeignMode: "L" | "A" | null;
-  investorType: string;
-  hhi: number;
-}): { label: string; description: string; color: string; Icon: typeof Target } {
-  const t = identity.investorType.toUpperCase();
-  if (identity.localForeignMode === "A" && (t.includes("IB") || t.includes("IC") || t.includes("IS"))) {
-    return { label: "Foreign Institution", description: "Investor asing institutional", color: "text-gold", Icon: Globe };
-  }
-  if (t.includes("CP") || t.includes("ID")) {
-    if (identity.holdingsCount <= 3 && identity.topPositionPct > 30) {
-      return { label: "Strategic/Corporate", description: "Posisi terkonsentrasi, kemungkinan pemegang strategis", color: "text-violet", Icon: Building2 };
-    }
-  }
-  if (identity.topPositionPct >= 50) {
-    return { label: "Concentrated", description: `Posisi terbesar ${fmtPercent(identity.topPositionPct)} dari portfolio`, color: "text-rose", Icon: Target };
-  }
-  if (identity.holdingsCount >= 20) {
-    return { label: "Diversified", description: `${identity.holdingsCount} posisi tersebar`, color: "text-teal", Icon: BarChart3 };
-  }
-  if (identity.holdingsCount >= 5) {
-    return { label: "Moderate", description: `${identity.holdingsCount} posisi, HHI ${identity.hhi.toFixed(0)}`, color: "text-foreground", Icon: BarChart3 };
-  }
-  return { label: "Focused", description: `${identity.holdingsCount} posisi terfokus`, color: "text-gold", Icon: Target };
+function styleBadgeClass(style: InvestorStyle): string {
+  if (style === "VALUE") return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1E40AF]";
+  if (style === "GROWTH") return "border-[#BBF7D0] bg-[#F0FDF4] text-[#065F46]";
+  if (style === "DIVIDEND") return "border-[#FDE68A] bg-[#FEF3C7] text-[#78350F]";
+  if (style === "SECTOR_SPECIALIST") return "border-[#DDD6FE] bg-[#F5F3FF] text-[#5B21B6]";
+  return "border-border bg-panel-2/45 text-foreground";
+}
+
+function styleLabel(style: InvestorStyle): string {
+  return style === "SECTOR_SPECIALIST" ? "Sector Specialist" : style;
 }
 
 function safeDecodeURIComponent(value: string | null): string | null {
@@ -111,29 +102,23 @@ const sectionVariants: Variants = {
   })
 };
 
-const sheetVariants: Variants = {
-  hidden: { x: "100%", opacity: 0 },
-  visible: { 
-    x: 0, 
-    opacity: 1, 
-    transition: { type: "spring", damping: 26, stiffness: 220, staggerChildren: 0.06 } 
+const pageVariants: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number], staggerChildren: 0.06 },
   },
-  exit: { 
-    x: "100%", 
-    opacity: 0, 
-    transition: { duration: 0.25, ease: "easeInOut" } 
-  }
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as [number, number, number, number] },
+  },
 };
 
 export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const investorParam = safeDecodeURIComponent(investorKey);
-
-  const handleClose = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("investor");
-    setSearchParams(next);
-  };
 
   const { loadState, loadError } = useDatasetLoader();
   const baseViews = useOwnershipViews();
@@ -145,6 +130,21 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
 
   const portfolio = views.investorPortfolio;
   const connected = views.connectedInvestors;
+  const portfolioTickers = useMemo(
+    () => normalizeTickerList(portfolio.map((position) => position.shareCode)),
+    [portfolio],
+  );
+  const { prices, marketData } = useMarketData(portfolioTickers);
+  const navigateToInvestor = (investorId: string) => {
+    navigate(`/investor/${encodeURIComponent(investorId)}`);
+  };
+  const navigateToIssuer = (shareCode: string) => {
+    navigate(`/emiten/${encodeURIComponent(shareCode.trim().toUpperCase())}`);
+  };
+  const navigateToIssuerId = (issuerId: string) => {
+    const row = views.allRows.find((r) => getIssuerId(r) === issuerId);
+    if (row) navigateToIssuer(row.shareCode);
+  };
 
   const identity = useMemo(() => {
     if (portfolio.length === 0) return null;
@@ -176,10 +176,14 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
     };
   }, [portfolio]);
 
-  const gayaInvestasi = useMemo(() => {
-    if (!identity) return null;
-    return gayaInvestasiInference(identity);
-  }, [identity]);
+  const styleProfile = useMemo(
+    () => buildInvestorStyleProfile(portfolio, marketData),
+    [portfolio, marketData],
+  );
+  const portfolioValueIDR = useMemo(
+    () => portfolio.reduce((sum, position) => sum + (getPositionValueIDR(position.shares, prices[position.shareCode]) ?? 0), 0),
+    [portfolio, prices],
+  );
 
   // Build a pseudo-timeline for investor's total portfolio
   const investorTimeline: OwnershipTimelineView | null = useMemo(() => {
@@ -213,11 +217,17 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
 
   if (loadState !== "ready") {
     return (
-      <>
-        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-        <main className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-4xl overflow-y-auto glass-deep px-8 py-8 border-l border-white/10">
-          <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
-          <div className="rounded-2xl border border-border bg-panel/45 p-8">
+      <PageShell>
+        <GlobalHeader
+          title="Detail Investor"
+          subtitle="Profil investor, portofolio IDX, dan relasi co-investor dalam satu halaman."
+          allRows={views.allRows}
+          currentPage="investor"
+          currentId={investorParam ?? undefined}
+          actions={[{ label: "Browse Universe", to: "/", variant: "secondary" }]}
+          onNavigate={navigate}
+        />
+        <div className="page-section p-6">
           {loadState === "error" ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <AlertTriangle className="h-10 w-10 text-rose/60" />
@@ -230,59 +240,69 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
             </div>
           )}
         </div>
-      </main>
-      </>
+        <EditorialFooter />
+      </PageShell>
     );
   }
 
-  if (!selectedInvestorId || !identity || !gayaInvestasi) {
+  if (!selectedInvestorId || !identity) {
     return (
-      <>
-        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-        <main className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-4xl overflow-y-auto glass-deep px-8 py-8 border-l border-white/10">
-          <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
-          <div className="rounded-2xl border border-border bg-panel/45 p-8">
+      <PageShell>
+        <GlobalHeader
+          title="Detail Investor"
+          subtitle="Profil investor, portofolio IDX, dan relasi co-investor dalam satu halaman."
+          allRows={views.allRows}
+          currentPage="investor"
+          currentId={investorParam ?? undefined}
+          actions={[{ label: "Browse Universe", to: "/", variant: "secondary" }]}
+          onNavigate={navigate}
+        />
+        <div className="page-section p-6">
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <Users className="h-12 w-12 text-muted/40" />
             <div className="text-lg font-semibold text-foreground">Investor tidak ditemukan</div>
             <p className="text-sm text-muted">
               Key <span className="font-mono text-teal">{investorParam ?? "-"}</span> belum ada di dataset aktif.
             </p>
-            <button type="button" onClick={handleClose} className="mt-2 inline-flex rounded-full border border-teal/30 bg-teal/5 px-4 py-1.5 text-sm text-teal hover:bg-teal/10">
-              ← Tutup Panel
+            <button type="button" onClick={() => navigate("/")} className="mt-2 inline-flex rounded-full border border-[#0D9488] bg-[#F0FDF9] px-4 py-1.5 text-sm text-[#0D9488] hover:bg-[#D7F3EE]">
+              Kembali ke Home
             </button>
           </div>
         </div>
-      </main>
-      </>
+        <EditorialFooter />
+      </PageShell>
     );
   }
 
   const typeBadge = investorTypeBadgeColor(identity.investorType);
-  const GayaIcon = gayaInvestasi.Icon;
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-      <motion.main
-        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-5xl overflow-y-auto glass-deep px-6 py-6 border-l border-white/10"
-        variants={sheetVariants}
+    <PageShell>
+      <GlobalHeader
+        title={identity.investorName}
+        subtitle="Profil investor, konsentrasi portofolio, overlap co-investor, dan semua posisi IDX pada snapshot aktif."
+        allRows={views.allRows}
+        currentPage="investor"
+        currentId={selectedInvestorId}
+        activeInvestor={{ investorId: selectedInvestorId, investorName: identity.investorName }}
+        metadata={`Data per ${identity.snapshotDate}`}
+        actions={[
+          { label: "Browse Universe", to: "/", variant: "secondary" },
+          { label: "Open Workstation", to: `/workstation/investor/${encodeURIComponent(selectedInvestorId)}`, variant: "ghost" },
+        ]}
+        onNavigate={navigate}
+      />
+      <motion.div
+        className="flex w-full flex-col gap-4"
+        variants={pageVariants}
         initial="hidden"
         animate="visible"
         exit="exit"
       >
-        <button onClick={handleClose} className="absolute top-4 right-4 z-50 rounded-full bg-black/20 hover:bg-black/40 text-white/70 hover:text-white p-2">✕</button>
-        <div className="flex w-full flex-col gap-6 pt-4">
-          <header className="pr-12">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              {identity.investorName}
-            </h1>
-            <p className="mt-1 text-sm text-muted">Data per {identity.snapshotDate} — profil investor dan portofolio IDX</p>
-          </header>
 
         {/* ── Hero Section ── */}
         <motion.section
-          className="rounded-2xl border border-border bg-panel/45 p-6"
+          className="rounded-2xl border border-border bg-panel/45 p-4"
           custom={0} variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -300,16 +320,44 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
                 {identity.nationality !== "UNKNOWN" && (
                   <span className="rounded-full border border-border px-3 py-0.5 text-xs text-muted">{identity.nationality}</span>
                 )}
-                <span className={`flex items-center gap-1 rounded-full border border-border px-3 py-0.5 text-xs font-medium ${gayaInvestasi.color}`}>
-                  <GayaIcon className="h-3 w-3" />
-                  {gayaInvestasi.label}
+                <span className={`rounded-full border px-3 py-0.5 text-xs font-medium ${styleBadgeClass(styleProfile.style)}`}>
+                  {styleLabel(styleProfile.style)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted">{gayaInvestasi.description}</p>
+              <p className="mt-1 text-xs text-muted">{styleProfile.reason}</p>
             </div>
             <div className="text-right">
-              <div className="stat-hero text-teal"><AnimatedNumber value={identity.holdingsCount} /></div>
-              <div className="text-sm text-muted">emiten</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Portfolio IDR</div>
+              <div className="mt-1 max-w-[260px] text-right text-[1.7rem] font-semibold leading-none tracking-tight text-[#855A30]">
+                {portfolioValueIDR > 0 ? formatIDR(portfolioValueIDR) : "-"}
+              </div>
+              <div className="mt-2 text-sm text-muted">{identity.holdingsCount} emiten disclosed</div>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 border-t border-border/70 pt-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <div className="section-title mb-1">Weighted PE</div>
+              <div className="font-mono text-sm font-semibold text-foreground">
+                {styleProfile.avgPE !== null ? `${styleProfile.avgPE.toFixed(1)}x` : "-"}
+              </div>
+            </div>
+            <div>
+              <div className="section-title mb-1">Weighted PB</div>
+              <div className="font-mono text-sm font-semibold text-foreground">
+                {styleProfile.avgPB !== null ? `${styleProfile.avgPB.toFixed(2)}x` : "-"}
+              </div>
+            </div>
+            <div>
+              <div className="section-title mb-1">Avg Div Yield</div>
+              <div className="font-mono text-sm font-semibold text-foreground">
+                {styleProfile.avgDivYieldPct !== null ? `${styleProfile.avgDivYieldPct.toFixed(1)}%` : "-"}
+              </div>
+            </div>
+            <div>
+              <div className="section-title mb-1">Market Coverage</div>
+              <div className="font-mono text-sm font-semibold text-foreground">
+                {styleProfile.coveragePct > 0 ? `${styleProfile.coveragePct.toFixed(0)}%` : "-"}
+              </div>
             </div>
           </div>
         </motion.section>
@@ -362,10 +410,7 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
             investorName={identity.investorName}
             positions={portfolio}
             onSelectEmiten={(shareCode) => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("investor");
-              next.set("emiten", shareCode);
-              setSearchParams(next);
+              navigateToIssuer(shareCode);
             }}
           />
         </motion.section>
@@ -384,19 +429,10 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
             investorId={selectedInvestorId}
             snapshotDate={views.snapshotDate}
             onSelectInvestor={(id) => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("investor");
-              next.set("investor", id);
-              setSearchParams(next);
+              navigateToInvestor(id);
             }}
             onSelectIssuer={(issuerId) => {
-              const row = views.allRows.find((r) => getIssuerId(r) === issuerId);
-              if (row) {
-                const next = new URLSearchParams(searchParams);
-                next.delete("investor");
-                next.set("emiten", row.shareCode);
-                setSearchParams(next);
-              }
+              navigateToIssuerId(issuerId);
             }}
           />
         </motion.section>
@@ -449,9 +485,7 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const next = new URLSearchParams(searchParams);
-                      next.set("investor", item.investorId);
-                      setSearchParams(next);
+                      navigateToInvestor(item.investorId);
                     }}
                     className="text-left"
                   >
@@ -467,10 +501,7 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
                         key={`${item.investorId}:${shareCode}`}
                         type="button"
                         onClick={() => {
-                          const next = new URLSearchParams(searchParams);
-                          next.delete("investor");
-                          next.set("emiten", shareCode);
-                          setSearchParams(next);
+                          navigateToIssuer(shareCode);
                         }}
                         className="rounded-full border border-teal/20 bg-teal/5 px-2.5 py-0.5 font-mono text-[11px] font-medium text-teal transition-colors hover:bg-teal/15"
                       >
@@ -495,11 +526,9 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
           </p>
           <InvestorPortfolioTable
             positions={portfolio}
+            prices={prices}
             onSelectPosition={(pos) => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("investor");
-              next.set("emiten", pos.shareCode);
-              setSearchParams(next);
+              navigateToIssuer(pos.shareCode);
             }}
           />
         </motion.section>
@@ -507,14 +536,8 @@ export function InvestorDetailPage({ investorKey }: { investorKey: string }) {
         {/* ── 9) Frequent Co-investors (Afiliasi) ── */}
         <FrequentCoinvestorsPanel currentInvestorId={selectedInvestorId} allRows={views.allRows} />
 
-        {/* ── Footer ── */}
-        <footer className="mt-6 flex justify-center pb-4 text-xs font-mono text-muted/40">
-          <a href="https://x.com/Conaax" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-teal">
-            Made by CONA
-          </a>
-        </footer>
-      </div>
-    </motion.main>
-    </>
+      </motion.div>
+      <EditorialFooter />
+    </PageShell>
   );
 }

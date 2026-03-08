@@ -73,7 +73,7 @@ export function OwnershipTimelinePanel({ timeline }: OwnershipTimelinePanelProps
   if (!timeline.hasEnoughHistory) {
     return (
       <div className="rounded-2xl border border-border bg-panel/35 p-4">
-        <div className="mb-3 text-sm font-medium text-foreground">
+        <div className="mb-3 hidden text-sm font-medium text-foreground">
           Data per {timeline.snapshotDates[0] ?? "—"}
         </div>
         {/* Single snapshot: show dots instead of lines */}

@@ -14,6 +14,7 @@ import type {
   CoInvestorOverlapView,
   InvestorPortfolioPosition,
   IssuerOwnershipSummary,
+  OwnershipRow,
   OwnershipSnapshotMeta,
   OwnershipTimelineView,
 } from "../types/ownership";
@@ -28,6 +29,7 @@ type UseOwnershipViewsArgs = {
 type UseOwnershipViewsResult = {
   snapshotMeta: OwnershipSnapshotMeta[];
   snapshotDate: string | null;
+  snapshotRows: OwnershipRow[];
   universeItems: ReturnType<typeof buildUniverseIssuerItems>;
   issuerOwnership: IssuerOwnershipSummary | null;
   investorPortfolio: InvestorPortfolioPosition[];
@@ -52,6 +54,11 @@ export function useOwnershipViews({
     if (forcedSnapshotDate) return forcedSnapshotDate;
     return latestSnapshotDate(allRows);
   }, [allRows, forcedSnapshotDate]);
+
+  const snapshotRows = useMemo(
+    () => (snapshotDate ? allRows.filter((row) => row.date === snapshotDate) : allRows),
+    [allRows, snapshotDate],
+  );
 
   const universeItems = useMemo(
     () => buildUniverseIssuerItems(filteredRows, snapshotDate),
@@ -94,6 +101,7 @@ export function useOwnershipViews({
   return {
     snapshotMeta,
     snapshotDate,
+    snapshotRows,
     universeItems,
     issuerOwnership,
     investorPortfolio,

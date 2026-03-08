@@ -1,31 +1,31 @@
 export const premiumLightTokens = {
   background: {
-    page: "#f4f1ec",
-    panel: "#ede9e1",
-    panelElevated: "#faf8f4",
-    border: "rgba(0,0,0,0.08)",
-    border2: "rgba(0,0,0,0.13)",
+    page: "#F1EADF",
+    panel: "#FFFBF5",
+    panelElevated: "#F7F0E6",
+    border: "#D8CDBF",
+    border2: "#C4B2A0",
   },
   accent: {
-    teal: "#0a8c6e",
-    gold: "#c47c1a",
-    rose: "#b83a4b",
-    violet: "#6b4fa0",
-    blue: "#2563a8",
-    lokal: "#0a8c6e",
-    asing: "#c47c1a",
-    danger: "#b83a4b",
-    focus: "#3c6b5f",
+    teal: "#1D4C45",
+    gold: "#855A30",
+    rose: "#7B312C",
+    violet: "#685261",
+    blue: "#48607C",
+    lokal: "#1D4C45",
+    asing: "#996737",
+    danger: "#7B312C",
+    focus: "#1D4C45",
   },
   text: {
-    primary: "#1a1814",
-    secondary: "#4a4640",
-    muted: "#8a8580",
-    quaternary: "#b5b0aa",
+    primary: "#1C1713",
+    secondary: "#665A4F",
+    muted: "#A99F95",
+    quaternary: "#C3B8AD",
   },
   heatmap: {
-    low: "#f4f1ec",
-    high: "#0a8c6e",
+    low: "#F7F0E6",
+    high: "#1D4C45",
   },
 } as const;
 
@@ -44,13 +44,13 @@ export function investorTypeBadgeColor(investorType: string | null): {
 } {
   const t = (investorType ?? "").toUpperCase().trim();
   if (t.includes("MF") || t.includes("REKSA") || t.includes("MUTUAL")) {
-    return { bg: "bg-violet/10", text: "text-violet", border: "border-violet/30" };
+    return { bg: "bg-[#F3ECF1]", text: "text-[#685261]", border: "border-[#D6C6CF]" };
   }
   if (t === "ID" || t === "I" || t.includes("INDIV") || t.includes("PERORANGAN")) {
-    return { bg: "bg-blue/10", text: "text-blue", border: "border-blue/30" };
+    return { bg: "bg-[#EEF1F4]", text: "text-[#48607C]", border: "border-[#CAD3DD]" };
   }
   if (t.includes("DIREKSI") || t.includes("KOMISARIS") || t.includes("DIRECTOR")) {
-    return { bg: "bg-rose/10", text: "text-rose", border: "border-rose/30" };
+    return { bg: "bg-[#F8E9E4]", text: "text-[#7B312C]", border: "border-[#E7BFB5]" };
   }
-  return { bg: "bg-teal/10", text: "text-teal", border: "border-teal/30" };
+  return { bg: "bg-[#EDF4F1]", text: "text-[#1D4C45]", border: "border-[#C0D6CF]" };
 }

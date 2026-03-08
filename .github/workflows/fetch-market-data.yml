@@ -1,0 +1,39 @@
+name: Fetch Market Data
+
+on:
+  schedule:
+    - cron: "*/15 2-4 * * 1-4"   # Sesi 1 Senin-Kamis
+    - cron: "*/15 2-4 * * 5"     # Sesi 1 Jumat
+    - cron: "0 5 * * 1-4"        # Istirahat Senin-Kamis (sekali)
+    - cron: "30 4 * * 5"         # Istirahat Jumat (sekali)
+    - cron: "*/15 6-9 * * 1-4"   # Sesi 2 Senin-Kamis
+    - cron: "*/15 7-9 * * 5"     # Sesi 2 Jumat
+    - cron: "15 9 * * 1-5"       # Tutup — final snapshot
+  workflow_dispatch:
+
+jobs:
+  fetch-prices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install yfinance pandas requests
+
+      - name: Run fetch script
+        run: python scripts/fetch-prices.py
+
+      - name: Commit and push changes
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add public/market-data.json
+          git diff --staged --quiet || git commit -m "chore: update market data [skip ci]"
+          git push
